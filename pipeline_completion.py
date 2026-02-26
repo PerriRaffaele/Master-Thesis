@@ -1,0 +1,175 @@
+from typing import Tuple
+from litellm import completion
+from models.mbpp import MBPP
+from models.humaneval import HumanEval
+from models.benchmark import Benchmark
+from neuron_specific.benchmark_specific.background_dataset import build_background_dataset
+from neuron_specific.benchmark_specific.compute_responses import compute_responses, get_mlp_hook
+from neuron_specific.benchmark_specific.compute_expertise import compute_expertise
+from neuron_specific.benchmark_specific.limit_expertise import limit_expertise
+from transformers import AutoModelForCausalLM, AutoTokenizer
+from collections import defaultdict
+import torch
+import os, re
+import json
+import pandas as pd
+
+def get_benchmark_by_name(benchmark_name: str) -> Benchmark:
+    """
+    Get the benchmark object by its name
+    Args:
+        benchmark_name (str): Name of the benchmark
+        benchmarks_dir (str): Directory where the benchmark files are stored
+    Returns:
+        Benchmark: The benchmark object
+    """
+    if benchmark_name == "humaneval":
+        return HumanEval()
+    elif benchmark_name == "mbpp":
+        return MBPP()
+    else:
+        raise ValueError(f"Invalid benchmark name: {benchmark_name}")
+
+def parse_code_block(string: str) -> str:
+    code_pattern = r"```[^\n]*\n(.*?)\n```"
+    match = re.search(code_pattern, string, re.DOTALL)
+    if match:
+        return match.group(1)
+    else:
+        print("No code block found; returning full string")
+        return string
+
+def generate(messages: list[dict], **args) -> Tuple[str, object]:
+    response = completion(
+        messages=messages,
+        **args, seed=42,
+        caching=False,
+        cache={"no-cache": True, "no-store": True}
+    )
+
+    result = response.choices[0].message.content
+    return parse_code_block(result)
+
+
+def print_messages(messages: list[dict]):
+    for message in messages:
+        print(f"---------------------------- {message['role'].upper()} ----------------------------")
+        print(message['content'])
+        print("------------------------------------------------------------------------------------")
+
+
+def export_jsonl(row, output_file):
+    with open(output_file, 'a') as f:
+        f.write(row.to_json() + '\n')
+
+def get_target_dataset_from_generation(jsonl_file):
+    df = pd.read_json(jsonl_file, lines=True)
+    target_texts = []
+    
+    for _, row in df.iterrows():
+        # Use the model's OWN generated code instead of the canonical one
+        full_text = row['evaluated_prompt'] + row['completion']
+        target_texts.append(full_text)
+        
+    return target_texts
+
+activations_dict = defaultdict(list)
+
+if __name__ == '__main__':
+    # Benchmark and Dataset
+    benchmark_names = {
+        1: "humaneval",
+        2: "mbpp"
+    }
+    chosen_benchmark = 1
+    benchmark_name = benchmark_names[chosen_benchmark]
+    max_tokens = 1024
+    temperature = 0.2
+    iterations = 1
+    benchmark = get_benchmark_by_name(benchmark_name)
+    benchmark_df = benchmark.load_data()
+    backgound_dataset = build_background_dataset(num_samples=len(benchmark_df))
+    
+    # # Model
+    # # model = 'hosted_vllm/unsloth/Qwen2.5-Coder-1.5B-Instruct'
+    model_id = 'unsloth/Qwen2.5-Coder-1.5B-Instruct'
+    tokenizer = AutoTokenizer.from_pretrained(model_id)
+    if tokenizer.pad_token is None:
+        tokenizer.pad_token = tokenizer.eos_token
+    model = AutoModelForCausalLM.from_pretrained(model_id, torch_dtype=torch.float16, device_map="auto")
+
+
+    output_dir = './results/'
+    os.makedirs(output_dir, exist_ok=True)
+
+    print(f"===== Arguments =====")
+    print(f"Model: {model}")
+    print(f"Benchmark: {benchmark_name}")
+    print(f"Max tokens: {max_tokens}")
+    print(f"Temperature: {temperature}")
+    print(f"Output dir: {output_dir}")
+    print(f"======================")
+
+    passed, num_instances = 0, len(benchmark_df)
+    #
+    #     # System prompt adapted from Reflexion (https://github.com/noahshinn/reflexion)
+    system_prompt = f"""You are an AI that only responds with Python code, NOT ENGLISH. You will be given a function signature and its docstring by the user. Write your full implementation. You always return the signature and anything that came before it in the input prompt (such as the docstring, libraries, imports, and so on) along with the full implementation of the function. Write the output in a markdown code block. For example:\n```\n<your code here>\n```"""
+
+    completion_kwargs = {
+        "model": model,
+        "max_tokens": max_tokens,
+        "temperature": temperature,
+        "api_base": 'http://localhost:8000/v1',
+    }
+
+    for i in range(iterations):
+        passed = 0
+        print(f"Running iteration {i + 1}/{iterations}...")
+
+        model_name_extracted = model.split("/")[-1].replace("-", "_")
+        iteration_dir = os.path.join(output_dir, model_name_extracted, benchmark_name, f"iter_{i + 1}")
+        os.makedirs(iteration_dir, exist_ok=True)
+
+        for idx, row in benchmark_df.iterrows():
+            benchmark.row = row
+
+            messages = [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": benchmark.prompt()}
+            ]
+
+            solution = generate(messages, **completion_kwargs)
+
+            status, output = benchmark.run_tests(solution)
+
+            if status == True: passed += 1
+            print(
+                f"\n\n## Prompt {idx + 1}/{num_instances} - Current accuracy: {(passed / (idx + 1)) * 100:.2f}% ({passed}/{idx + 1})\n\n")
+
+            row['evaluated_prompt'] = benchmark.prompt()
+            row['evaluated_tests'] = benchmark.tests()
+            row['completion'] = solution
+            row['test_output'] = output
+            row['passed'] = status
+            export_jsonl(row, os.path.join(iteration_dir, f"result.jsonl"))
+
+    # 4. Compute Expertise Scores
+    iteration_dir = os.path.join(output_dir, model_id.split("/")[-1].replace("-", "_"), benchmark_name, f"iter_1")
+    target_texts = get_target_dataset_from_generation(os.path.join(iteration_dir, f"result.jsonl"))
+    hooks = []
+    print("Registering PyTorch hooks to MLP layers...")
+    for i, layer in enumerate(model.model.layers):
+        h = layer.mlp.down_proj.register_forward_pre_hook(get_mlp_hook(f"layer_{i}", activations_dict))
+        hooks.append(h)
+    target_acts = compute_responses(model, tokenizer, activations_dict, target_texts, desc="Processing Target Benchmark")
+    background_acts = compute_responses(model, tokenizer, activations_dict, backgound_dataset, desc="Processing Background Dataset")
+    ap_scores_per_layer = compute_expertise(target_acts, background_acts)
+    top_benchmark_neurons = limit_expertise(ap_scores_per_layer, top_k=50)
+    output_file = "./results/benchmark_specific/completion_top_benchmark_neurons.json"
+    os.makedirs(os.path.dirname(output_file), exist_ok=True)
+    with open(output_file, "w") as f:
+        json.dump(top_benchmark_neurons, f, indent=4)
+        
+    print(f"\nSuccess! Top benchmark neurons saved to {output_file}.")
+
+    
