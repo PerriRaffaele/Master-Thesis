@@ -36,4 +36,4 @@ def compare_neuron_jsons(read_file: str, generate_file: str):
         print("Result: The methods produced different sets of top neurons.")
 
 if __name__ == '__main__':
-    compare_neuron_jsons('./results/benchmark_specific/canonical_top_benchmark_neurons.json', './results/benchmark_specific/completion_top_benchmark_neurons.json')
+    compare_neuron_jsons('./results/benchmark_specific/humaneval_plus_jsonl_top_benchmark_neurons.json', './results/benchmark_specific/humaneval_plus_jsonl_completion_top_benchmark_neurons.json')

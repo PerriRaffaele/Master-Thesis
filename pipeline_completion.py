@@ -89,7 +89,7 @@ if __name__ == '__main__':
     benchmark_df = benchmark.load_data()
     raw_background_dataset = build_background_dataset(num_samples=len(benchmark_df), benchmark_name=benchmark_name)
     
-    # # Model
+    # Model
     model = 'hosted_vllm/unsloth/Qwen2.5-Coder-1.5B-Instruct'
 
     output_dir = './results/'
