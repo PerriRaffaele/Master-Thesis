@@ -3,7 +3,7 @@ from litellm import completion
 from models.mbpp import MBPP
 from models.humaneval import HumanEval
 from models.benchmark import Benchmark
-from neuron_specific.benchmark_specific.background_dataset import build_background_dataset
+from neuron_specific.benchmark_specific.background_dataset import build_background_dataset, decontaminate_background
 from neuron_specific.benchmark_specific.compute_responses import compute_responses, get_mlp_hook
 from neuron_specific.benchmark_specific.compute_expertise import compute_expertise
 from neuron_specific.benchmark_specific.limit_expertise import limit_expertise
@@ -23,7 +23,7 @@ def get_benchmark_by_name(benchmark_name: str) -> Benchmark:
     Returns:
         Benchmark: The benchmark object
     """
-    if benchmark_name == "humaneval":
+    if benchmark_name == "humaneval_plus":
         return HumanEval()
     elif benchmark_name == "mbpp":
         return MBPP()
@@ -67,9 +67,8 @@ def get_target_dataset_from_generation(jsonl_file):
     target_texts = []
     
     for _, row in df.iterrows():
-        # Use the model's OWN generated code instead of the canonical one
-        full_text = row['evaluated_prompt'] + row['completion']
-        target_texts.append(full_text)
+        # append raw json string
+        target_texts.append(row.to_json())
         
     return target_texts
 
@@ -78,7 +77,7 @@ activations_dict = defaultdict(list)
 if __name__ == '__main__':
     # Benchmark and Dataset
     benchmark_names = {
-        1: "humaneval",
+        1: "humaneval_plus",
         2: "mbpp"
     }
     chosen_benchmark = 1
@@ -88,16 +87,10 @@ if __name__ == '__main__':
     iterations = 1
     benchmark = get_benchmark_by_name(benchmark_name)
     benchmark_df = benchmark.load_data()
-    backgound_dataset = build_background_dataset(num_samples=len(benchmark_df))
+    raw_background_dataset = build_background_dataset(num_samples=len(benchmark_df), benchmark_name=benchmark_name)
     
     # # Model
-    # # model = 'hosted_vllm/unsloth/Qwen2.5-Coder-1.5B-Instruct'
-    model_id = 'unsloth/Qwen2.5-Coder-1.5B-Instruct'
-    tokenizer = AutoTokenizer.from_pretrained(model_id)
-    if tokenizer.pad_token is None:
-        tokenizer.pad_token = tokenizer.eos_token
-    model = AutoModelForCausalLM.from_pretrained(model_id, torch_dtype=torch.float16, device_map="auto")
-
+    model = 'hosted_vllm/unsloth/Qwen2.5-Coder-1.5B-Instruct'
 
     output_dir = './results/'
     os.makedirs(output_dir, exist_ok=True)
@@ -154,18 +147,29 @@ if __name__ == '__main__':
             export_jsonl(row, os.path.join(iteration_dir, f"result.jsonl"))
 
     # 4. Compute Expertise Scores
+    model_id = 'unsloth/Qwen2.5-Coder-1.5B-Instruct'
+    tokenizer = AutoTokenizer.from_pretrained(model_id)
+    if tokenizer.pad_token is None:
+        tokenizer.pad_token = tokenizer.eos_token
+    model = AutoModelForCausalLM.from_pretrained(model_id, torch_dtype=torch.float16, device_map="auto")
+
     iteration_dir = os.path.join(output_dir, model_id.split("/")[-1].replace("-", "_"), benchmark_name, f"iter_1")
     target_texts = get_target_dataset_from_generation(os.path.join(iteration_dir, f"result.jsonl"))
+    
     hooks = []
     print("Registering PyTorch hooks to MLP layers...")
     for i, layer in enumerate(model.model.layers):
         h = layer.mlp.down_proj.register_forward_pre_hook(get_mlp_hook(f"layer_{i}", activations_dict))
         hooks.append(h)
+    
     target_acts = compute_responses(model, tokenizer, activations_dict, target_texts, desc="Processing Target Benchmark")
-    background_acts = compute_responses(model, tokenizer, activations_dict, backgound_dataset, desc="Processing Background Dataset")
+    background_dataset = decontaminate_background(raw_background_dataset, target_texts)
+    background_acts = compute_responses(model, tokenizer, activations_dict, background_dataset, desc="Processing Background Dataset")
+    
     ap_scores_per_layer = compute_expertise(target_acts, background_acts)
     top_benchmark_neurons = limit_expertise(ap_scores_per_layer, top_k=50)
-    output_file = "./results/benchmark_specific/completion_top_benchmark_neurons.json"
+    
+    output_file = f"./results/benchmark_specific/{benchmark_name}_jsonl_completion_top_benchmark_neurons.json"
     os.makedirs(os.path.dirname(output_file), exist_ok=True)
     with open(output_file, "w") as f:
         json.dump(top_benchmark_neurons, f, indent=4)
