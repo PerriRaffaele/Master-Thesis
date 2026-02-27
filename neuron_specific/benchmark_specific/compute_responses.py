@@ -6,14 +6,9 @@ from tqdm import tqdm
 
 def get_mlp_hook(layer_name, activations_dict):
     def hook(module, args):
-        # In models like Qwen, the intermediate activations are computed before the final down_proj. 
-        # We take the max activation across the sequence tokens to represent the whole sequence.
-        # output shape is [batch, seq_len, intermediate_size]
-        hidden_states = args[0] # args is a tuple, first element is the input tensor
-        # We take the max activation across all tokens in the sequence (dim=1)
-        # We also squeeze the batch dimension since we process batch_size=1
+        # grab matrix of neuron activations for this layer (shape: [batch_size, seq_len, hidden_dim])
+        hidden_states = args[0]
         max_act_over_seq, _ = torch.max(hidden_states.squeeze(0).detach(), dim=0) 
-        
         # Move to CPU immediately to prevent GPU Out-Of-Memory errors
         activations_dict[layer_name].append(max_act_over_seq.cpu().numpy())
     return hook
