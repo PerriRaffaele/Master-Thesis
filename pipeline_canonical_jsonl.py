@@ -46,7 +46,6 @@ if __name__ == '__main__':
     background_dataset = decontaminate_background(raw_background_dataset, benchmark_texts)
     
     # Model
-    # model = 'hosted_vllm/unsloth/Qwen2.5-Coder-1.5B-Instruct'
     model_id = 'unsloth/Qwen2.5-Coder-1.5B-Instruct'
     tokenizer = AutoTokenizer.from_pretrained(model_id)
     if tokenizer.pad_token is None:

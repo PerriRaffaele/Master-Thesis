@@ -128,11 +128,5 @@ def decontaminate_background(background_texts, benchmark_json_strings):
             
     removed_count = len(background_texts) - len(clean_background)
     print(f"Decontamination complete. Removed {removed_count} overlapping/leaked samples.")
-    print("Example of a removed contaminated sample:")
-    if len(background_texts) > 0:
-        for bg_text in background_texts:
-            if bg_text not in clean_background:
-                print(bg_text[:200])  # Print first 200 characters of a removed sample
-                break
-    
+
     return clean_background

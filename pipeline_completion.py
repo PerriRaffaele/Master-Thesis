@@ -39,15 +39,29 @@ def parse_code_block(string: str) -> str:
         print("No code block found; returning full string")
         return string
 
-def generate(messages: list[dict], **args) -> Tuple[str, object]:
-    response = completion(
-        messages=messages,
-        **args, seed=42,
-        caching=False,
-        cache={"no-cache": True, "no-store": True}
+def generate(messages: list[dict], model, tokenizer, max_new_tokens: int, temperature: float) -> str:
+    prompt = tokenizer.apply_chat_template(
+        messages,
+        tokenize=False,
+        add_generation_prompt=True
     )
+    
+    inputs = tokenizer(prompt, return_tensors="pt").to(model.device)
 
-    result = response.choices[0].message.content
+    with torch.no_grad():
+        outputs = model.generate(
+            **inputs,
+            max_new_tokens=max_new_tokens,
+            temperature=temperature,
+            do_sample=temperature > 0.0,
+            pad_token_id=tokenizer.pad_token_id,
+            eos_token_id=tokenizer.eos_token_id
+        )
+    
+    input_length = inputs.input_ids.shape[1]
+    generated_tokens = outputs[0][input_length:]
+    
+    result = tokenizer.decode(generated_tokens, skip_special_tokens=True)
     return parse_code_block(result)
 
 
@@ -90,7 +104,11 @@ if __name__ == '__main__':
     raw_background_dataset = build_background_dataset(num_samples=len(benchmark_df), benchmark_name=benchmark_name)
     
     # Model
-    model = 'hosted_vllm/unsloth/Qwen2.5-Coder-1.5B-Instruct'
+    model_id = 'unsloth/Qwen2.5-Coder-1.5B-Instruct'
+    tokenizer = AutoTokenizer.from_pretrained(model_id)
+    if tokenizer.pad_token is None:
+        tokenizer.pad_token = tokenizer.eos_token
+    model = AutoModelForCausalLM.from_pretrained(model_id, torch_dtype=torch.float16, device_map="auto")
 
     output_dir = './results/'
     os.makedirs(output_dir, exist_ok=True)
@@ -119,7 +137,7 @@ if __name__ == '__main__':
         passed = 0
         print(f"Running iteration {i + 1}/{iterations}...")
 
-        model_name_extracted = model.split("/")[-1].replace("-", "_")
+        model_name_extracted = model_id.split("/")[-1].replace("-", "_")
         iteration_dir = os.path.join(output_dir, model_name_extracted, benchmark_name, f"iter_{i + 1}")
         os.makedirs(iteration_dir, exist_ok=True)
 
@@ -131,7 +149,13 @@ if __name__ == '__main__':
                 {"role": "user", "content": benchmark.prompt()}
             ]
 
-            solution = generate(messages, **completion_kwargs)
+            solution = generate(
+                messages=messages,
+                model=model,
+                tokenizer=tokenizer,
+                max_new_tokens=max_tokens,
+                temperature=temperature
+            )
 
             status, output = benchmark.run_tests(solution)
 
@@ -147,12 +171,6 @@ if __name__ == '__main__':
             export_jsonl(row, os.path.join(iteration_dir, f"result.jsonl"))
 
     # 4. Compute Expertise Scores
-    model_id = 'unsloth/Qwen2.5-Coder-1.5B-Instruct'
-    tokenizer = AutoTokenizer.from_pretrained(model_id)
-    if tokenizer.pad_token is None:
-        tokenizer.pad_token = tokenizer.eos_token
-    model = AutoModelForCausalLM.from_pretrained(model_id, torch_dtype=torch.float16, device_map="auto")
-
     iteration_dir = os.path.join(output_dir, model_id.split("/")[-1].replace("-", "_"), benchmark_name, f"iter_1")
     target_texts = get_target_dataset_from_generation(os.path.join(iteration_dir, f"result.jsonl"))
     
