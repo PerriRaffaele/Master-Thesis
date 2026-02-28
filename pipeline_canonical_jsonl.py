@@ -14,13 +14,31 @@ from neuron_specific.benchmark_specific.limit_expertise import limit_expertise
 from transformers import AutoModelForCausalLM, AutoTokenizer
 from collections import defaultdict
 
+def get_benchmark_by_name(benchmark_name: str) -> Benchmark:
+    """
+    Get the benchmark object by its name
+    Args:
+        benchmark_name (str): Name of the benchmark
+        benchmarks_dir (str): Directory where the benchmark files are stored
+    Returns:
+        Benchmark: The benchmark object
+    """
+    if benchmark_name == "humaneval_plus":
+        return HumanEval()
+    elif benchmark_name == "mbpp_plus":
+        return MBPP()
+    else:
+        raise ValueError(f"Invalid benchmark name: {benchmark_name}")
+
 def get_target_dataset_jsonl(filepath="benchmarks/humaneval_plus.jsonl"):
     """Loads the benchmark dataset directly as raw JSON strings."""
     print(f"Loading Target Dataset from JSONL: {filepath}...")
     target_texts = []
     
     if not os.path.exists(filepath):
-        raise FileNotFoundError(f"Could not find the dataset at {filepath}")
+        benchmark = get_benchmark_by_name(benchmark_name)
+        benchmark_df = benchmark.load_data()
+        benchmark_df.to_json(filepath, orient="records", lines=True)
         
     with open(filepath, 'r', encoding='utf-8') as f:
         for line in f:
@@ -37,9 +55,9 @@ if __name__ == '__main__':
     # Benchmark and Dataset
     benchmark_names = {
         1: "humaneval_plus",
-        2: "mbpp"
+        2: "mbpp_plus"
     }
-    chosen_benchmark = 1
+    chosen_benchmark = 2
     benchmark_name = benchmark_names[chosen_benchmark]
     benchmark_texts = get_target_dataset_jsonl(filepath=f"benchmarks/{benchmark_name}_dataset.jsonl")
     raw_background_dataset = build_background_dataset(num_samples=len(benchmark_texts), benchmark_name=benchmark_name)

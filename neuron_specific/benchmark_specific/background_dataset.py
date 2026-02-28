@@ -59,7 +59,7 @@ def build_background_dataset(num_samples=500, benchmark_name="humaneval_plus"):
                         "test": "def check(candidate): pass",
                         "entry_point": "dummy_function"
                     }
-                elif benchmark_name == "mbpp":
+                elif benchmark_name == "mbpp_plus":
                     dummy_json = {
                         "task_id": f"Background_Task/{json_python_samples}",
                         "code": truncated_code[split_point:],
