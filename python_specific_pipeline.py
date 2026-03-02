@@ -93,6 +93,61 @@ def get_multilingual_dataset(benchmark_name, filepath, num_samples=150):
             
     return multilingual_texts
 
+def get_multilingual_dataset_github(num_samples=150):
+    """
+    Loads source code files from bigcode/the-stack-smol.
+    This is the modern, secure equivalent to codeparrot/github-code.
+    """
+    print("Loading multilingual datasets from bigcode/the-stack-smol...")
+    multilingual_texts = {}
+    
+    # The Stack uses lowercase directory names
+    stack_languages = {
+        "python": "python",
+        "java": "java",
+        "c++": "c++",
+        "javascript": "javascript",
+        "ruby": "ruby",
+        "go": "go",
+        "php": "php",
+        "rust": "rust",
+        "sql": "sql"
+    }
+    
+    for lang_key, stack_dir in stack_languages.items():
+        print(f"  Fetching {lang_key} (the-stack-smol: {stack_dir})...")
+        try:
+            # We stream from specific language directories
+            ds = load_dataset(
+                "bigcode/the-stack-smol", 
+                data_dir=f"data/{stack_dir}", 
+                split="train",
+                streaming=True
+            )
+            
+            texts = []
+            for row in ds:
+                # The Stack uses 'content' for the raw code
+                code = row["content"].strip()
+                
+                if len(code) > 100:
+                    # Truncate to prevent Out-Of-Memory errors
+                    texts.append(code[:1500])
+                    
+                if len(texts) >= num_samples:
+                    break
+                    
+            if texts:
+                multilingual_texts[lang_key] = texts
+                print(f"    Loaded {len(texts)} {lang_key.capitalize()} samples.")
+            else:
+                print(f"    Warning: No valid samples found for {lang_key}.")
+                
+        except Exception as e:
+            print(f"    Failed to load {lang_key}: {e}")
+            
+    return multilingual_texts
+
 
 # Dictionaries to store token counts per language
 active_token_counts = defaultdict(lambda: defaultdict(int))
@@ -105,10 +160,11 @@ if __name__ == '__main__':
     }
     benchmark = benchmark_names[1] 
     # Fetch Parallel Multilingual Dataset
-    multilingual_texts = get_multilingual_dataset(benchmark, filepath=f"benchmarks/{benchmark}_plus_dataset.jsonl", num_samples=150)
+    # multilingual_texts = get_multilingual_dataset(benchmark, filepath=f"benchmarks/{benchmark}_plus_dataset.jsonl", num_samples=150)
+    multilingual_texts = get_multilingual_dataset_github(num_samples=150)
     
     # Load Model
-    model_id = 'unsloth/Qwen2.5-Coder-1.5B-Instruct'
+    model_id = "unsloth/Qwen2.5-Coder-14B-Instruct"
     print(f"\nLoading model {model_id}...")
     tokenizer = AutoTokenizer.from_pretrained(model_id)
     if tokenizer.pad_token is None:
@@ -121,10 +177,10 @@ if __name__ == '__main__':
     # Calculate LAPE & Filter for Python Experts
     layers = [f"layer_{i}" for i in range(len(model.model.layers))]
     lape_scores_per_layer = compute_lape_scores(layers, active_token_counts, total_token_counts)
-    top_python_neurons = limit_python_expertise(lape_scores_per_layer, max_entropy=0.15)
+    top_python_neurons = limit_python_expertise(lape_scores_per_layer, max_entropy=0.20)
     
     # Save Results
-    output_file = "./results/language_specific/lape_python_neurons.json"
+    output_file = f"./results/language_specific/{model_id}/lape_python_neurons.json"
     os.makedirs(os.path.dirname(output_file), exist_ok=True)
     with open(output_file, "w") as f:
         json.dump(top_python_neurons, f, indent=4)

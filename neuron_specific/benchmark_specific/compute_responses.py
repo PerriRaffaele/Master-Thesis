@@ -9,7 +9,6 @@ def get_mlp_hook(layer_name, activations_dict):
         # grab matrix of neuron activations for this layer (shape: [batch_size, seq_len, hidden_dim])
         hidden_states = args[0]
         max_act_over_seq, _ = torch.max(hidden_states.squeeze(0).detach(), dim=0) 
-        # Move to CPU immediately to prevent GPU Out-Of-Memory errors
         activations_dict[layer_name].append(max_act_over_seq.cpu().numpy())
     return hook
 

@@ -64,11 +64,13 @@ if __name__ == '__main__':
     background_dataset = decontaminate_background(raw_background_dataset, benchmark_texts)
     
     # Model
-    model_id = 'unsloth/Qwen2.5-Coder-1.5B-Instruct'
+    model_id = 'codellama/CodeLlama-13b-Instruct-hf'
     tokenizer = AutoTokenizer.from_pretrained(model_id)
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
     model = AutoModelForCausalLM.from_pretrained(model_id, torch_dtype=torch.float16, device_map="auto")
+    print("===== Model Loaded =====")
+    print(model)
 
 
     output_dir = './results/'
@@ -96,10 +98,10 @@ if __name__ == '__main__':
     
     # 5. Calculate AP and Extract Top Neurons
     ap_scores_per_layer = compute_expertise(target_acts, background_acts)
-    top_benchmark_neurons = limit_expertise(ap_scores_per_layer, top_k=50)
+    top_benchmark_neurons = limit_expertise(ap_scores_per_layer, threshold=0.90)
     
     # 6. Save Results
-    output_file = f"./results/benchmark_specific/{benchmark_name}_jsonl_top_benchmark_neurons.json"
+    output_file = f"./results/benchmark_specific/{model_id}/{benchmark_name}_jsonl_top_benchmark_neurons.json"
     os.makedirs(os.path.dirname(output_file), exist_ok=True)
     with open(output_file, "w") as f:
         json.dump(top_benchmark_neurons, f, indent=4)

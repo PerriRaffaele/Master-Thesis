@@ -185,9 +185,9 @@ if __name__ == '__main__':
     background_acts = compute_responses(model, tokenizer, activations_dict, background_dataset, desc="Processing Background Dataset")
     
     ap_scores_per_layer = compute_expertise(target_acts, background_acts)
-    top_benchmark_neurons = limit_expertise(ap_scores_per_layer, top_k=50)
+    top_benchmark_neurons = limit_expertise(ap_scores_per_layer, threshold=0.90)
     
-    output_file = f"./results/benchmark_specific/{benchmark_name}_jsonl_completion_top_benchmark_neurons.json"
+    output_file = f"./results/benchmark_specific/{model_id}/{benchmark_name}_jsonl_completion_top_benchmark_neurons.json"
     os.makedirs(os.path.dirname(output_file), exist_ok=True)
     with open(output_file, "w") as f:
         json.dump(top_benchmark_neurons, f, indent=4)
