@@ -64,7 +64,7 @@ if __name__ == '__main__':
     background_dataset = decontaminate_background(raw_background_dataset, benchmark_texts)
     
     # Model
-    model_id = 'codellama/CodeLlama-13b-Instruct-hf'
+    model_id = "unsloth/Qwen2.5-Coder-14B-Instruct"
     tokenizer = AutoTokenizer.from_pretrained(model_id)
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token

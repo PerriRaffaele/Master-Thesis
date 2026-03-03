@@ -94,7 +94,7 @@ if __name__ == '__main__':
         1: "humaneval_plus",
         2: "mbpp_plus"
     }
-    chosen_benchmark = 2
+    chosen_benchmark = 1
     benchmark_name = benchmark_names[chosen_benchmark]
     max_tokens = 1024
     temperature = 0.2
@@ -104,7 +104,7 @@ if __name__ == '__main__':
     raw_background_dataset = build_background_dataset(num_samples=len(benchmark_df), benchmark_name=benchmark_name)
     
     # Model
-    model_id = 'unsloth/Qwen2.5-Coder-1.5B-Instruct'
+    model_id = "unsloth/Qwen2.5-Coder-14B-Instruct"
     tokenizer = AutoTokenizer.from_pretrained(model_id)
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token

@@ -93,7 +93,7 @@ def get_multilingual_dataset(benchmark_name, filepath, num_samples=150):
             
     return multilingual_texts
 
-def get_multilingual_dataset_github(num_samples=150):
+def get_multilingual_dataset_github(num_samples):
     """
     Loads source code files from bigcode/the-stack-smol.
     This is the modern, secure equivalent to codeparrot/github-code.
