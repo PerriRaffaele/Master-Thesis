@@ -1,9 +1,6 @@
 import os
-import re
 import json
 import torch
-from typing import Tuple
-from litellm import completion
 from models.mbpp import MBPP
 from models.humaneval import HumanEval
 from models.benchmark import Benchmark
