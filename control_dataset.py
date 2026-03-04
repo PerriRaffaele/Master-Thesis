@@ -1,12 +1,14 @@
+import os
 from datasets import load_dataset
 import random
 import json
 import re
-import json
 import random
 from datasets import load_dataset
+import warnings
 from benchmark_specific_pipeline_canonical import get_target_dataset_jsonl
 import ast
+from tqdm import tqdm
 
 def build_background_dataset_old(num_samples=500, benchmark_name="humaneval_plus"):
     background_texts = []
@@ -117,99 +119,119 @@ def build_background_dataset(benchmark_texts, num_samples=500, benchmark_name="h
         split="train", 
         streaming=True,
     )
-
+    stack = stack.shuffle(seed=42, buffer_size=10000)
+    
     samples_collected = 0
     class_pattern = re.compile(r'\bclass\b')
     
-    for row in stack:
-        code = row["content"].strip()
-        
-        if class_pattern.search(code):
-            continue
+    pbar = tqdm(total=num_samples, desc="Extracting Background Samples")
+    
+    try:
+        for row in stack: 
+            code = row["content"].strip()
             
-        try:
-            tree = ast.parse(code)
-        except SyntaxError:
-            continue
-            
-        for node in tree.body:
+            if class_pattern.search(code):
+                continue
+
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", SyntaxWarning)        
+                try:
+                    tree = ast.parse(code)
+                except (SyntaxError, RecursionError, MemoryError):
+                    # Skip files with invalid syntax, insane nesting, or massive memory footprints
+                    continue
+                
+            for node in tree.body:
+                if samples_collected >= num_samples:
+                    break
+                    
+                if isinstance(node, ast.FunctionDef):
+                    
+                    func_source = ast.get_source_segment(code, node)
+                    if not func_source:
+                        continue
+                        
+                    docstring = ast.get_docstring(node)
+                    
+                    if docstring and len(node.body) > 1:
+                        body_start_idx = node.body[1].lineno - node.lineno
+                    elif not docstring and len(node.body) > 0:
+                        body_start_idx = node.body[0].lineno - node.lineno
+                    else:
+                        continue 
+                        
+                    lines = func_source.split('\n')
+                    
+                    sig_and_doc = '\n'.join(lines[:body_start_idx])
+                    body_code = '\n'.join(lines[body_start_idx:])
+                    
+                    if docstring:
+                        sig_end_idx = node.body[0].lineno - node.lineno
+                        signature_only = '\n'.join(lines[:sig_end_idx])
+                    else:
+                        signature_only = sig_and_doc
+                    
+                    # 4. Filter and Format based on Benchmark
+                    if benchmark_name == "humaneval_plus":
+                        candidate_prompt = sig_and_doc
+                        function_name = node.name
+                        candidate_solution = body_code
+                        
+                        # STRICT FILTER: Discard if it exceeds the benchmark averages
+                        if len(candidate_prompt) > avg_prompt_len or len(candidate_solution) > avg_solution_len:
+                            continue
+                            
+                        if not candidate_solution.strip(): continue 
+                        
+                        json_file = {
+                            "task_id": f"Background_Task/{samples_collected}",
+                            "prompt": candidate_prompt,
+                            "canonical_solution": candidate_solution,
+                            "test": "def check(candidate):\n    pass",
+                            "entry_point": f"{function_name}"
+                        }
+                        
+                    elif benchmark_name == "mbpp_plus":
+                        candidate_prompt = docstring if docstring else ""
+                        candidate_solution = signature_only + "\n" + body_code
+                        function_name = node.name
+                        
+                        # STRICT FILTER: Discard if it exceeds the benchmark averages
+                        if len(candidate_prompt) > avg_prompt_len or len(candidate_solution) > avg_solution_len:
+                            continue
+                            
+                        if not candidate_solution.strip(): continue
+                        
+                        json_file = {
+                            "task_id": f"Background_Task/{samples_collected}",
+                            "code": candidate_solution,
+                            "prompt": candidate_prompt,
+                            "source_file": f"{function_name}.py",
+                            "test_imports": [],
+                            "test_list": ["assert True"],
+                            "test": "assertion(function(*), exp, 0):\n    pass"
+                        }
+
+                    background_texts.append(json.dumps(json_file))
+                    samples_collected += 1
+
+                    pbar.update(1)
+
             if samples_collected >= num_samples:
                 break
-                
-            if isinstance(node, ast.FunctionDef):
-                
-                func_source = ast.get_source_segment(code, node)
-                if not func_source:
-                    continue
-                    
-                docstring = ast.get_docstring(node)
-                
-                if docstring and len(node.body) > 1:
-                    body_start_idx = node.body[1].lineno - node.lineno
-                elif not docstring and len(node.body) > 0:
-                    body_start_idx = node.body[0].lineno - node.lineno
-                else:
-                    continue 
-                    
-                lines = func_source.split('\n')
-                
-                sig_and_doc = '\n'.join(lines[:body_start_idx])
-                body_code = '\n'.join(lines[body_start_idx:])
-                
-                if docstring:
-                    sig_end_idx = node.body[0].lineno - node.lineno
-                    signature_only = '\n'.join(lines[:sig_end_idx])
-                else:
-                    signature_only = sig_and_doc
-                
-                # 4. Filter and Format based on Benchmark
-                if benchmark_name == "humaneval_plus":
-                    candidate_prompt = sig_and_doc
-                    function_name = node.name
-                    candidate_solution = body_code
-                    
-                    # STRICT FILTER: Discard if it exceeds the benchmark averages
-                    if len(candidate_prompt) > avg_prompt_len or len(candidate_solution) > avg_solution_len:
-                        continue
-                        
-                    if not candidate_solution.strip(): continue 
-                    
-                    json_file = {
-                        "task_id": f"Background_Task/{samples_collected}",
-                        "prompt": candidate_prompt,
-                        "canonical_solution": candidate_solution,
-                        "test": "def check(candidate):\n    pass",
-                        "entry_point": f"{function_name}"
-                    }
-                    
-                elif benchmark_name == "mbpp_plus":
-                    candidate_prompt = docstring if docstring else ""
-                    candidate_solution = signature_only + "\n" + body_code
-                    function_name = node.name
-                    
-                    # STRICT FILTER: Discard if it exceeds the benchmark averages
-                    if len(candidate_prompt) > avg_prompt_len or len(candidate_solution) > avg_solution_len:
-                        continue
-                        
-                    if not candidate_solution.strip(): continue
-                    
-                    json_file = {
-                        "task_id": f"Background_Task/{samples_collected}",
-                        "code": candidate_solution,
-                        "prompt": candidate_prompt,
-                        "source_file": f"{function_name}.py",
-                        "test_imports": [],
-                        "test_list": ["assert True"],
-                        "test": "def check(candidate):\n    pass"
-                    }
-
-                background_texts.append(json.dumps(json_file))
-                samples_collected += 1
-
-        if samples_collected >= num_samples:
-            break
+    finally:
+        # Explicitly delete the streaming iterator so HuggingFace background
+        # threads (prefetch workers, file handles) are released before we return.
+        pbar.close()
+        del stack
 
     print(f"Built background dataset with {len(background_texts)} {benchmark_name}-formatted samples!")
+    # save as JSONL for future use
+    output_path = f"benchmarks/control_dataset/{benchmark_name}_background_dataset.jsonl"
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+    with open(output_path, "w") as f:
+        for text in background_texts:
+            f.write(text + "\n")
     return background_texts
 
 
@@ -265,5 +287,7 @@ if __name__ == "__main__":
     # Example usage
     benchmark_name = "humaneval_plus"
     benchmark_texts = get_target_dataset_jsonl(filepath=f"benchmarks/{benchmark_name}_dataset.jsonl")
-    build_background_dataset(benchmark_texts, num_samples=500, benchmark_name=benchmark_name)
+    build_background_dataset(benchmark_texts, num_samples=1000000, benchmark_name=benchmark_name)
     
+    # Force exit to kill any lingering HuggingFace streaming background threads
+    os._exit(0)
