@@ -1,14 +1,14 @@
 import json
 import os
 
-def compare_neuron_jsons(file_1: str, file_2: str):
+def compare_neuron_jsons(file_1: str, file_2: str, description: str):
     with open(file_1, 'r') as f1, open(file_2, 'r') as f2:
         data_1 = json.load(f1)
         data_2 = json.load(f2)
 
     all_identical = True
     
-    print(f"Comparing neurons...\n")
+    print(f"Comparing neurons => {description}")
 
     for layer in data_1.keys():
         if layer not in data_2:
@@ -32,9 +32,9 @@ def compare_neuron_jsons(file_1: str, file_2: str):
 
     print("\n--- Final Conclusion ---")
     if all_identical:
-        print("Result: The exact same top neurons activated in both the Reading and Generating methods!")
+        print("Result: The exact same top neurons activated in both the Reading and Generating methods!\n")
     else:
-        print("Result: The methods produced different sets of top neurons.")
+        print("Result: The methods produced different sets of top neurons.\n")
 
 
 def analyze_neuron_activation(filepath: str, total_neurons_per_layer: int, num_layers: int, model: str, dataset: str, specific: str):
@@ -91,20 +91,35 @@ def analyze_neuron_activation(filepath: str, total_neurons_per_layer: int, num_l
         count = layer_counts.get(layer, 0)
         if count > 0:
             # Adding a visual bar for quick scanning
-            bar = "█" * min(count, 50) # caps the bar at 50 chars for clean terminal output
-            print(f"  {layer.ljust(10)}: {str(count).ljust(4)} {bar}")
+            print(f"  {layer.ljust(10)}: {str(count).ljust(4)}")
 
 
 if __name__ == '__main__':
     print("\n[ RUNNING COMPARISONS ]")
     # CANONICAL VS COMPLETION (Humaneval Plus)
-    compare_neuron_jsons('./results/benchmark_specific/humaneval_plus_jsonl_completion_top_benchmark_neurons.json', './results/benchmark_specific/humaneval_plus_jsonl_top_benchmark_neurons.json')
+    compare_neuron_jsons(
+        './results/benchmark_specific/humaneval_plus_jsonl_completion_top_benchmark_neurons.json', 
+        './results/benchmark_specific/humaneval_plus_jsonl_top_benchmark_neurons.json',
+        "Completion vs Canonical (Humaneval Plus) - Qwen2.5-Coder-1.5B-Instruct"
+        )
     # CANONICAL VS COMPLETION (MBPP Plus)
-    compare_neuron_jsons('./results/benchmark_specific/mbpp_plus_jsonl_completion_top_benchmark_neurons.json', './results/benchmark_specific/mbpp_plus_jsonl_top_benchmark_neurons.json')
+    compare_neuron_jsons(
+        './results/benchmark_specific/mbpp_plus_jsonl_completion_top_benchmark_neurons.json', ''
+        './results/benchmark_specific/mbpp_plus_jsonl_top_benchmark_neurons.json',
+        "Completion vs Canonical (MBPP Plus) - Qwen2.5-Coder-1.5B-Instruct"
+        )
     # unsloth/Qwen2.5-Coder-14B-Instruct (MBPP Plus) VS unsloth/Qwen2.5-Coder-14B-Instruct (Python LAPE) 
-    compare_neuron_jsons('./results/benchmark_specific/unsloth/Qwen2.5-Coder-14B-Instruct/mbpp_plus_jsonl_top_benchmark_neurons.json', './results/language_specific/unsloth/Qwen2.5-Coder-14B-Instruct/lape_python_neurons.json')
+    compare_neuron_jsons(
+        './results/benchmark_specific/unsloth/Qwen2.5-Coder-14B-Instruct/mbpp_plus_jsonl_top_benchmark_neurons.json', 
+        './results/language_specific/unsloth/Qwen2.5-Coder-14B-Instruct/lape_python_neurons.json',
+        "MBPP Plus vs Python LAPE - Qwen2.5-Coder-14B-Instruct"
+        )
     # codellama/CodeLlama-13b-Instruct-hf (MBPP Plus) VS codellama/CodeLlama-13b-Instruct-hf (Python LAPE) 
-    compare_neuron_jsons('./results/benchmark_specific/codellama/CodeLlama-13b-Instruct-hf/mbpp_plus_jsonl_top_benchmark_neurons.json', './results/language_specific/codellama/CodeLlama-13b-Instruct-hf/lape_python_neurons.json')
+    compare_neuron_jsons(
+        './results/benchmark_specific/codellama/CodeLlama-13b-Instruct-hf/mbpp_plus_jsonl_top_benchmark_neurons.json', 
+        './results/language_specific/codellama/CodeLlama-13b-Instruct-hf/lape_python_neurons.json',
+        "MBPP Plus vs Python LAPE - CodeLlama-13b-Instruct-hf"
+        )
     
     print("\n[ ANALYZING INDIVIDUAL FILES ]")
 
