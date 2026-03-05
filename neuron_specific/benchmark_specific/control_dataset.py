@@ -6,88 +6,48 @@ import re
 import random
 from datasets import load_dataset
 import warnings
-from benchmark_specific_pipeline_canonical import get_target_dataset_jsonl
+from models.benchmark import Benchmark
+from models.humaneval import HumanEval
+from models.mbpp import MBPP
 import ast
 from tqdm import tqdm
 
-def build_background_dataset_old(num_samples=500, benchmark_name="humaneval_plus"):
-    background_texts = []
-    
-    # Calculate an even 3-way split
-    english_needed = num_samples // 3
-    raw_python_needed = num_samples // 3
-    json_python_needed = num_samples - english_needed - raw_python_needed
-    
-    # 1. Fetch Plain English (WikiText)
-    print(f"Downloading {english_needed} English background samples...")
-    wiki = load_dataset("wikitext", "wikitext-103-v1", split="train", streaming=True)
-    
-    english_samples = 0
-    for row in wiki:
-        text = row["text"].strip()
-        # Only take substantial paragraphs
-        if len(text) > 200: 
-            background_texts.append(text[:1000]) # Cap length to match benchmark sizes
-            english_samples += 1
-        if english_samples >= english_needed:
-            break
+def get_benchmark_by_name(benchmark_name: str) -> Benchmark:
+    """
+    Get the benchmark object by its name
+    Args:
+        benchmark_name (str): Name of the benchmark
+        benchmarks_dir (str): Directory where the benchmark files are stored
+    Returns:
+        Benchmark: The benchmark object
+    """
+    if benchmark_name == "humaneval_plus":
+        return HumanEval()
+    elif benchmark_name == "mbpp_plus":
+        return MBPP()
+    else:
+        raise ValueError(f"Invalid benchmark name: {benchmark_name}")
 
-    # 2. Fetch Boilerplate/Non-Algorithmic Python (The Stack Smol)
-    print(f"Downloading {raw_python_needed + json_python_needed} Python background samples...")
-    stack = load_dataset("bigcode/the-stack-smol", data_dir="data/python", split="train", streaming=True)
+def get_target_dataset_jsonl(filepath="benchmarks/humaneval_plus.jsonl"):
+    """Loads the benchmark dataset directly as raw JSON strings."""
+    print(f"Loading Target Dataset from JSONL: {filepath}...")
+    target_texts = []
     
-    raw_python_samples = 0
-    json_python_samples = 0
-    # Keywords indicating boilerplate/web/config code, NOT algorithms
-    boring_keywords = ["django", "flask", "setup(", "argparse", "sqlalchemy", "route(", "html"]
-    
-    for row in stack:
-        code = row["content"]
-        if any(kw in code.lower() for kw in boring_keywords) and len(code) > 100:
-            truncated_code = code[:1000] 
+    if not os.path.exists(filepath):
+        benchmark = get_benchmark_by_name(benchmark_name)
+        benchmark_df = benchmark.load_data()
+        benchmark_df.to_json(filepath, orient="records", lines=True)
+        
+    with open(filepath, 'r', encoding='utf-8') as f:
+        for line in f:
+            # Append the raw JSON string
+            target_texts.append(line.strip())
             
-            # Split into Raw Python and JSON-formatted Python
-            if raw_python_samples < raw_python_needed:
-                background_texts.append(truncated_code)
-                raw_python_samples += 1
-                
-            elif json_python_samples < json_python_needed:
-                # Wrap the boilerplate code in a dummy JSON structure that mimics HumanEval
-                # We split the code in half to populate a fake "prompt" and "solution"
-                split_point = len(truncated_code) // 2
-                if benchmark_name == "humaneval_plus":
-                    dummy_json = {
-                        "task_id": f"Background_Task/{json_python_samples}",
-                        "prompt": truncated_code[:split_point],
-                        "canonical_solution": truncated_code[split_point:],
-                        "test": "def check(candidate): pass",
-                        "entry_point": "dummy_function"
-                    }
-                elif benchmark_name == "mbpp_plus":
-                    dummy_json = {
-                        "task_id": f"Background_Task/{json_python_samples}",
-                        "code": truncated_code[split_point:],
-                        "prompt": truncated_code[:split_point],
-                        "source_file": "dummy.py",
-                        "test_imports": "import dummy",
-                        "test_list": ["def test(): pass"],
-                        "test": "def check(candidate): pass",
-                    }
-                # Convert dict to JSON string and append
-                background_texts.append(json.dumps(dummy_json))
-                json_python_samples += 1
-                
-            if raw_python_samples >= raw_python_needed and json_python_samples >= json_python_needed:
-                break
-
-    # Shuffle the dataset so English, Raw Python, and JSON Python are mixed randomly
-    random.shuffle(background_texts)
-    print(f"Built background dataset with {len(background_texts)} samples!")
-    
-    return background_texts
+    print(f"Loaded {len(target_texts)} target benchmark samples as JSON strings.")
+    return target_texts
 
 
-def build_background_dataset(benchmark_texts, num_samples=500, benchmark_name="humaneval_plus"):
+def build_control_dataset(benchmark_texts, num_samples=500, benchmark_name="humaneval_plus"):
     background_texts = []
     
     # Calculate average lengths independently for prompt and solution
@@ -220,14 +180,12 @@ def build_background_dataset(benchmark_texts, num_samples=500, benchmark_name="h
             if samples_collected >= num_samples:
                 break
     finally:
-        # Explicitly delete the streaming iterator so HuggingFace background
-        # threads (prefetch workers, file handles) are released before we return.
         pbar.close()
         del stack
 
-    print(f"Built background dataset with {len(background_texts)} {benchmark_name}-formatted samples!")
+    print(f"Built control dataset with {len(background_texts)} {benchmark_name}-formatted samples!")
     # save as JSONL for future use
-    output_path = f"benchmarks/control_dataset/{benchmark_name}_background_dataset.jsonl"
+    output_path = f"benchmarks/control_dataset/{benchmark_name}_control_dataset.jsonl"
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     with open(output_path, "w") as f:
         for text in background_texts:
@@ -285,9 +243,9 @@ def decontaminate_background(background_texts, benchmark_json_strings):
 
 if __name__ == "__main__":
     # Example usage
-    benchmark_name = "humaneval_plus"
+    benchmark_name = "mbpp_plus"
     benchmark_texts = get_target_dataset_jsonl(filepath=f"benchmarks/{benchmark_name}_dataset.jsonl")
-    build_background_dataset(benchmark_texts, num_samples=1000000, benchmark_name=benchmark_name)
+    build_control_dataset(benchmark_texts, num_samples=1000000, benchmark_name=benchmark_name)
     
     # Force exit to kill any lingering HuggingFace streaming background threads
     os._exit(0)

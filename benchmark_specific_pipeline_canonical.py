@@ -1,49 +1,12 @@
 import os
 import json
 import torch
-from models.mbpp import MBPP
-from models.humaneval import HumanEval
-from models.benchmark import Benchmark
-from neuron_specific.benchmark_specific.background_dataset import build_background_dataset, decontaminate_background
 from neuron_specific.benchmark_specific.compute_responses import compute_responses, get_mlp_hook
 from neuron_specific.benchmark_specific.compute_expertise import compute_expertise
 from neuron_specific.benchmark_specific.limit_expertise import limit_expertise
 from transformers import AutoModelForCausalLM, AutoTokenizer
 from collections import defaultdict
-
-def get_benchmark_by_name(benchmark_name: str) -> Benchmark:
-    """
-    Get the benchmark object by its name
-    Args:
-        benchmark_name (str): Name of the benchmark
-        benchmarks_dir (str): Directory where the benchmark files are stored
-    Returns:
-        Benchmark: The benchmark object
-    """
-    if benchmark_name == "humaneval_plus":
-        return HumanEval()
-    elif benchmark_name == "mbpp_plus":
-        return MBPP()
-    else:
-        raise ValueError(f"Invalid benchmark name: {benchmark_name}")
-
-def get_target_dataset_jsonl(filepath="benchmarks/humaneval_plus.jsonl"):
-    """Loads the benchmark dataset directly as raw JSON strings."""
-    print(f"Loading Target Dataset from JSONL: {filepath}...")
-    target_texts = []
-    
-    if not os.path.exists(filepath):
-        benchmark = get_benchmark_by_name(benchmark_name)
-        benchmark_df = benchmark.load_data()
-        benchmark_df.to_json(filepath, orient="records", lines=True)
-        
-    with open(filepath, 'r', encoding='utf-8') as f:
-        for line in f:
-            # Append the raw JSON string
-            target_texts.append(line.strip())
-            
-    print(f"Loaded {len(target_texts)} target benchmark samples as JSON strings.")
-    return target_texts
+from neuron_specific.benchmark_specific.control_dataset import build_control_dataset, get_target_dataset_jsonl, decontaminate_background
 
 # Global dictionary to store activations during the forward pass
 activations_dict = defaultdict(list)
@@ -54,12 +17,19 @@ if __name__ == '__main__':
         1: "humaneval_plus",
         2: "mbpp_plus"
     }
-    chosen_benchmark = 2
+    chosen_benchmark = 1
     benchmark_name = benchmark_names[chosen_benchmark]
     benchmark_texts = get_target_dataset_jsonl(filepath=f"benchmarks/{benchmark_name}_dataset.jsonl")
-    raw_background_dataset = build_background_dataset(num_samples=len(benchmark_texts), benchmark_name=benchmark_name)
-    background_dataset = decontaminate_background(raw_background_dataset, benchmark_texts)
-    
+    # check if control dataset already exists in folder
+    control_dataset_path = f"benchmarks/control_dataset/{benchmark_name}_control_dataset.jsonl"
+    control_dataset = None
+    if os.path.exists(control_dataset_path):
+        with open(control_dataset_path, 'r', encoding='utf-8') as f:
+            control_dataset = [line.strip() for line in f]
+    else:
+        raw_control_dataset = build_control_dataset(benchmark_texts, num_samples=1000000, benchmark_name=benchmark_name)
+        control_dataset = decontaminate_background(raw_control_dataset, benchmark_texts)
+
     # Model
     model_id = "unsloth/Qwen2.5-Coder-14B-Instruct"
     tokenizer = AutoTokenizer.from_pretrained(model_id)
@@ -88,17 +58,17 @@ if __name__ == '__main__':
         
     # 4. Run Forward Passes
     target_acts = compute_responses(model, tokenizer, activations_dict, benchmark_texts, desc="Target Passes")
-    background_acts = compute_responses(model, tokenizer, activations_dict, background_dataset, desc="Background Passes")
+    control_acts = compute_responses(model, tokenizer, activations_dict, control_dataset, desc="Control Passes")
     
     # Remove hooks to clean up memory
     for h in hooks: h.remove()
     
     # 5. Calculate AP and Extract Top Neurons
-    ap_scores_per_layer = compute_expertise(target_acts, background_acts)
+    ap_scores_per_layer = compute_expertise(target_acts, control_acts)
     top_benchmark_neurons = limit_expertise(ap_scores_per_layer, threshold=0.90)
     
     # 6. Save Results
-    output_file = f"./results/benchmark_specific/{model_id}/{benchmark_name}_jsonl_top_benchmark_neurons.json"
+    output_file = f"./results/benchmark_specific/{model_id}/new_dataset/{benchmark_name}_jsonl_top_benchmark_neurons.json"
     os.makedirs(os.path.dirname(output_file), exist_ok=True)
     with open(output_file, "w") as f:
         json.dump(top_benchmark_neurons, f, indent=4)
