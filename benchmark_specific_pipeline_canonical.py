@@ -7,6 +7,7 @@ from neuron_specific.benchmark_specific.limit_expertise import limit_expertise
 from transformers import AutoModelForCausalLM, AutoTokenizer
 from collections import defaultdict
 from neuron_specific.benchmark_specific.control_dataset import build_control_dataset, get_target_dataset_jsonl, decontaminate_background
+import random
 
 # Global dictionary to store activations during the forward pass
 activations_dict = defaultdict(list)
@@ -29,9 +30,10 @@ if __name__ == '__main__':
     else:
         raw_control_dataset = build_control_dataset(benchmark_texts, num_samples=1000000, benchmark_name=benchmark_name)
         control_dataset = decontaminate_background(raw_control_dataset, benchmark_texts)
-
+    
     # Model
-    model_id = "unsloth/Qwen2.5-Coder-14B-Instruct"
+    # model_id = "unsloth/Qwen2.5-Coder-14B-Instruct"
+    model_id = "unsloth/Qwen2.5-Coder-1.5B-Instruct"
     tokenizer = AutoTokenizer.from_pretrained(model_id)
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
@@ -57,8 +59,8 @@ if __name__ == '__main__':
         hooks.append(h)
         
     # 4. Run Forward Passes
-    target_acts = compute_responses(model, tokenizer, activations_dict, benchmark_texts, desc="Target Passes")
-    control_acts = compute_responses(model, tokenizer, activations_dict, control_dataset, desc="Control Passes")
+    target_acts = compute_responses(model, tokenizer, activations_dict, benchmark_texts, desc="Target Passes", batch_size=128)
+    control_acts = compute_responses(model, tokenizer, activations_dict, control_dataset, desc="Control Passes", batch_size=128)
     
     # Remove hooks to clean up memory
     for h in hooks: h.remove()
