@@ -31,9 +31,11 @@ if __name__ == '__main__':
         raw_control_dataset = build_control_dataset(benchmark_texts, num_samples=1000000, benchmark_name=benchmark_name)
         control_dataset = decontaminate_background(raw_control_dataset, benchmark_texts)
     
+    # Get only 100000 samples for the control dataset to speed up the process
+    control_dataset = random.sample(control_dataset, 100000)
     # Model
-    # model_id = "unsloth/Qwen2.5-Coder-14B-Instruct"
-    model_id = "unsloth/Qwen2.5-Coder-1.5B-Instruct"
+    model_id = "unsloth/Qwen2.5-Coder-14B-Instruct"
+    # model_id = "unsloth/Qwen2.5-Coder-1.5B-Instruct"
     tokenizer = AutoTokenizer.from_pretrained(model_id)
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
@@ -59,8 +61,8 @@ if __name__ == '__main__':
         hooks.append(h)
         
     # 4. Run Forward Passes
-    target_acts = compute_responses(model, tokenizer, activations_dict, benchmark_texts, desc="Target Passes", batch_size=128)
-    control_acts = compute_responses(model, tokenizer, activations_dict, control_dataset, desc="Control Passes", batch_size=128)
+    target_acts = compute_responses(model, tokenizer, activations_dict, benchmark_texts, desc="Target Passes", batch_size=8)
+    control_acts = compute_responses(model, tokenizer, activations_dict, control_dataset, desc="Control Passes", batch_size=8)
     
     # Remove hooks to clean up memory
     for h in hooks: h.remove()
