@@ -6,7 +6,7 @@ from neuron_specific.benchmark_specific.compute_expertise import compute_experti
 from neuron_specific.benchmark_specific.limit_expertise import limit_expertise
 from transformers import AutoModelForCausalLM, AutoTokenizer
 from collections import defaultdict
-from neuron_specific.benchmark_specific.control_dataset import build_control_dataset, get_target_dataset_jsonl, decontaminate_background
+from control_dataset import build_control_dataset, get_target_dataset_jsonl, decontaminate_background
 import random
 from tqdm import tqdm
 
@@ -36,8 +36,8 @@ if __name__ == '__main__':
     sample_size = 10000
     control_dataset = random.sample(control_dataset, sample_size)
     # Model
-    model_id = "unsloth/Qwen2.5-Coder-14B-Instruct"
-    # model_id = "unsloth/Qwen2.5-Coder-1.5B-Instruct"
+    # model_id = "unsloth/Qwen2.5-Coder-14B-Instruct"
+    model_id = "unsloth/Qwen2.5-Coder-1.5B-Instruct"
     tokenizer = AutoTokenizer.from_pretrained(model_id)
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token

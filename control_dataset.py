@@ -11,6 +11,7 @@ from models.humaneval import HumanEval
 from models.mbpp import MBPP
 import ast
 from tqdm import tqdm
+import tiktoken
 
 def get_benchmark_by_name(benchmark_name: str) -> Benchmark:
     """
@@ -49,28 +50,34 @@ def get_target_dataset_jsonl(filepath="benchmarks/humaneval_plus.jsonl"):
 
 def build_control_dataset(benchmark_texts, num_samples=500, benchmark_name="humaneval_plus"):
     background_texts = []
+
+    enc = tiktoken.get_encoding("cl100k_base")  # Accurate token counts
     
     # Calculate average lengths independently for prompt and solution
     print(f"Calculating average component lengths from {benchmark_name}...")
-    total_prompt_len = 0
-    total_solution_len = 0
+    prompt_token_counts = []
+    solution_token_counts = []
     
     for text in benchmark_texts:
         data = json.loads(text)
         
         if benchmark_name == "humaneval_plus":
-            total_prompt_len += len(data.get("prompt", ""))
-            total_solution_len += len(data.get("canonical_solution", ""))
-        elif benchmark_name == "mbpp_plus":
-            total_prompt_len += len(data.get("prompt", ""))
-            total_solution_len += len(data.get("code", ""))
+            # Count standard LLM tokens instantly
+            prompt_token_counts.append(len(enc.encode(data.get("prompt", ""), disallowed_special=())))
+            solution_token_counts.append(len(enc.encode(data.get("canonical_solution", ""), disallowed_special=())))
             
-    num_bench_samples = max(1, len(benchmark_texts)) # Prevent division by zero
-    avg_prompt_len = int(total_prompt_len / num_bench_samples)
-    avg_solution_len = int(total_solution_len / num_bench_samples)
+        elif benchmark_name == "mbpp_plus":
+            prompt_token_counts.append(len(enc.encode(data.get("prompt", ""), disallowed_special=())))
+            solution_token_counts.append(len(enc.encode(data.get("code", ""), disallowed_special=())))
+            
+    min_prompt = min(prompt_token_counts)
+    max_prompt = max(prompt_token_counts)
+    min_sol = min(solution_token_counts)
+    max_sol = max(solution_token_counts)
         
-    print(f"  -> Averages Locked: Prompt = {avg_prompt_len} chars, Solution = {avg_solution_len} chars")
-    print(f"Downloading {num_samples} diverse Python background samples from The Stack...")
+    print(f"  -> Bounds Locked:")
+    print(f"     Prompt Tokens: [{min_prompt} to {max_prompt}]")
+    print(f"     Solution Tokens: [{min_sol} to {max_sol}]")
     
     # Stream from The Stack
     stack = load_dataset(
@@ -108,28 +115,21 @@ def build_control_dataset(benchmark_texts, num_samples=500, benchmark_name="huma
                 if isinstance(node, ast.FunctionDef):
                     
                     func_source = ast.get_source_segment(code, node)
-                    if not func_source:
-                        continue
+                    if not func_source: continue
                         
                     docstring = ast.get_docstring(node)
+                    if not docstring: continue
                     
-                    if docstring and len(node.body) > 1:
+                    if len(node.body) > 1:
                         body_start_idx = node.body[1].lineno - node.lineno
-                    elif not docstring and len(node.body) > 0:
-                        body_start_idx = node.body[0].lineno - node.lineno
                     else:
                         continue 
                         
                     lines = func_source.split('\n')
-                    
                     sig_and_doc = '\n'.join(lines[:body_start_idx])
                     body_code = '\n'.join(lines[body_start_idx:])
-                    
-                    if docstring:
-                        sig_end_idx = node.body[0].lineno - node.lineno
-                        signature_only = '\n'.join(lines[:sig_end_idx])
-                    else:
-                        signature_only = sig_and_doc
+                    sig_end_idx = node.body[0].lineno - node.lineno
+                    signature_only = '\n'.join(lines[:sig_end_idx])
                     
                     # 4. Filter and Format based on Benchmark
                     if benchmark_name == "humaneval_plus":
@@ -137,11 +137,14 @@ def build_control_dataset(benchmark_texts, num_samples=500, benchmark_name="huma
                         function_name = node.name
                         candidate_solution = body_code
                         
-                        # STRICT FILTER: Discard if it exceeds the benchmark averages
-                        if len(candidate_prompt) > avg_prompt_len or len(candidate_solution) > avg_solution_len:
-                            continue
-                            
-                        if not candidate_solution.strip(): continue 
+                        # Use tiktoken to check the size
+                        cand_prompt_tokens = len(enc.encode(candidate_prompt, disallowed_special=()))
+                        cand_sol_tokens = len(enc.encode(candidate_solution, disallowed_special=()))
+                        
+                        # STRICT RANGE FILTER
+                        if not (min_prompt <= cand_prompt_tokens <= max_prompt): continue
+                        if not (min_sol <= cand_sol_tokens <= max_sol): continue
+                        if not candidate_solution.strip(): continue
                         
                         json_file = {
                             "task_id": f"Background_Task/{samples_collected}",
@@ -156,10 +159,12 @@ def build_control_dataset(benchmark_texts, num_samples=500, benchmark_name="huma
                         candidate_solution = signature_only + "\n" + body_code
                         function_name = node.name
                         
-                        # STRICT FILTER: Discard if it exceeds the benchmark averages
-                        if len(candidate_prompt) > avg_prompt_len or len(candidate_solution) > avg_solution_len:
-                            continue
-                            
+                        cand_prompt_tokens = len(enc.encode(candidate_prompt, disallowed_special=()))
+                        cand_sol_tokens = len(enc.encode(candidate_solution, disallowed_special=()))
+                        
+                        # STRICT RANGE FILTER
+                        if not (min_prompt <= cand_prompt_tokens <= max_prompt): continue
+                        if not (min_sol <= cand_sol_tokens <= max_sol): continue
                         if not candidate_solution.strip(): continue
                         
                         json_file = {
@@ -243,7 +248,7 @@ def decontaminate_background(background_texts, benchmark_json_strings):
 
 if __name__ == "__main__":
     # Example usage
-    benchmark_name = "mbpp_plus"
+    benchmark_name = "humaneval_plus"
     benchmark_texts = get_target_dataset_jsonl(filepath=f"benchmarks/{benchmark_name}_dataset.jsonl")
     build_control_dataset(benchmark_texts, num_samples=1000000, benchmark_name=benchmark_name)
     

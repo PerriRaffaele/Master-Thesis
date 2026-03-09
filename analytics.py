@@ -112,6 +112,30 @@ if __name__ == '__main__':
         './results/benchmark_specific/unsloth/Qwen2.5-Coder-14B-Instruct/new_dataset/humaneval_plus_jsonl_top_benchmark_neurons_10000.json',
         "Humaneval Plus - Top Benchmark Neurons (100000 samples vs 2000 samples) - Qwen2.5-Coder-14B-Instruct"
         )
+    analyze_neuron_activation(
+        './results/benchmark_specific/unsloth/Qwen2.5-Coder-14B-Instruct/new_dataset/humaneval_plus_jsonl_top_benchmark_neurons_100000.json',
+        total_neurons_per_layer=13824,
+        num_layers=48,
+        model="Qwen2.5-Coder-14B-Instruct",
+        dataset="Humaneval Plus",
+        specific="Top Benchmark Neurons (100k samples)"
+    )
+    analyze_neuron_activation(
+        './results/benchmark_specific/unsloth/Qwen2.5-Coder-14B-Instruct/new_dataset/humaneval_plus_jsonl_top_benchmark_neurons_10000.json',
+        total_neurons_per_layer=13824,
+        num_layers=48,
+        model="Qwen2.5-Coder-14B-Instruct",
+        dataset="Humaneval Plus",
+        specific="Top Benchmark Neurons (100k samples)"
+    )
+    analyze_neuron_activation(
+        './results/benchmark_specific/unsloth/Qwen2.5-Coder-14B-Instruct/new_dataset/humaneval_plus_jsonl_top_benchmark_neurons_2000.json',
+        total_neurons_per_layer=13824,
+        num_layers=48,
+        model="Qwen2.5-Coder-14B-Instruct",
+        dataset="Humaneval Plus",
+        specific="Top Benchmark Neurons (100k samples)"
+    )
     # # CANONICAL VS COMPLETION (Humaneval Plus)
     # compare_neuron_jsons(
     #     './results/benchmark_specific/humaneval_plus_jsonl_completion_top_benchmark_neurons.json', 
