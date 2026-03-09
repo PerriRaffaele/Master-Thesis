@@ -33,7 +33,7 @@ if __name__ == '__main__':
         control_dataset = decontaminate_background(raw_control_dataset, benchmark_texts)
     
     # Get only 100000 samples for the control dataset to speed up the process
-    sample_size = 10000
+    sample_size = 100000
     control_dataset = random.sample(control_dataset, sample_size)
     # Model
     # model_id = "unsloth/Qwen2.5-Coder-14B-Instruct"
@@ -63,7 +63,7 @@ if __name__ == '__main__':
         hooks.append(h)
         
     # 4. Run Forward Passes
-    batch_size = 8
+    batch_size = 128
     target_acts = compute_responses(model, tokenizer, activations_dict, benchmark_texts, desc="Target Passes", batch_size=batch_size)
     control_acts = compute_responses(model, tokenizer, activations_dict, control_dataset, desc="Control Passes", batch_size=batch_size)
     
