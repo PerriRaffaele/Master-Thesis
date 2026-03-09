@@ -27,7 +27,13 @@ def compare_neuron_jsons(file_1: str, file_2: str, description: str):
             all_identical = False
             # Calculate how many they actually share to give you some context
             shared = neurons_1.intersection(neurons_2)
-            overlap_percentage = (len(shared) / len(neurons_1)) * 100
+            # Avoid division by zero if there are no neurons in the first set
+            if len(neurons_1) == 0 and len(neurons_2) == 0:
+                overlap_percentage = 100.0
+            elif len(neurons_1) == 0:
+                overlap_percentage = 0.0
+            else:
+                overlap_percentage = (len(shared) / len(neurons_1)) * 100
             print(f"{layer}: MISMATCH - Overlap: {overlap_percentage:.1f}% ({len(shared)}/{len(neurons_1)} shared)")
 
     print("\n--- Final Conclusion ---")
@@ -96,89 +102,99 @@ def analyze_neuron_activation(filepath: str, total_neurons_per_layer: int, num_l
 
 if __name__ == '__main__':
     print("\n[ RUNNING COMPARISONS ]")
-    # CANONICAL VS COMPLETION (Humaneval Plus)
     compare_neuron_jsons(
-        './results/benchmark_specific/humaneval_plus_jsonl_completion_top_benchmark_neurons.json', 
-        './results/benchmark_specific/humaneval_plus_jsonl_top_benchmark_neurons.json',
-        "Completion vs Canonical (Humaneval Plus) - Qwen2.5-Coder-1.5B-Instruct"
+        './results/benchmark_specific/unsloth/Qwen2.5-Coder-14B-Instruct/new_dataset/humaneval_plus_jsonl_top_benchmark_neurons_100000.json', 
+        './results/benchmark_specific/unsloth/Qwen2.5-Coder-14B-Instruct/new_dataset/humaneval_plus_jsonl_top_benchmark_neurons_2000.json',
+        "Humaneval Plus - Top Benchmark Neurons (100000 samples vs 2000 samples) - Qwen2.5-Coder-14B-Instruct"
         )
-    # CANONICAL VS COMPLETION (MBPP Plus)
     compare_neuron_jsons(
-        './results/benchmark_specific/mbpp_plus_jsonl_completion_top_benchmark_neurons.json', ''
-        './results/benchmark_specific/mbpp_plus_jsonl_top_benchmark_neurons.json',
-        "Completion vs Canonical (MBPP Plus) - Qwen2.5-Coder-1.5B-Instruct"
+        './results/benchmark_specific/unsloth/Qwen2.5-Coder-14B-Instruct/new_dataset/humaneval_plus_jsonl_top_benchmark_neurons_100000.json', 
+        './results/benchmark_specific/unsloth/Qwen2.5-Coder-14B-Instruct/new_dataset/humaneval_plus_jsonl_top_benchmark_neurons_10000.json',
+        "Humaneval Plus - Top Benchmark Neurons (100000 samples vs 2000 samples) - Qwen2.5-Coder-14B-Instruct"
         )
-    # unsloth/Qwen2.5-Coder-14B-Instruct (MBPP Plus) VS unsloth/Qwen2.5-Coder-14B-Instruct (Python LAPE) 
-    compare_neuron_jsons(
-        './results/benchmark_specific/unsloth/Qwen2.5-Coder-14B-Instruct/mbpp_plus_jsonl_top_benchmark_neurons.json', 
-        './results/language_specific/unsloth/Qwen2.5-Coder-14B-Instruct/lape_python_neurons.json',
-        "MBPP Plus vs Python LAPE - Qwen2.5-Coder-14B-Instruct"
-        )
-    # codellama/CodeLlama-13b-Instruct-hf (MBPP Plus) VS codellama/CodeLlama-13b-Instruct-hf (Python LAPE) 
-    compare_neuron_jsons(
-        './results/benchmark_specific/codellama/CodeLlama-13b-Instruct-hf/mbpp_plus_jsonl_top_benchmark_neurons.json', 
-        './results/language_specific/codellama/CodeLlama-13b-Instruct-hf/lape_python_neurons.json',
-        "MBPP Plus vs Python LAPE - CodeLlama-13b-Instruct-hf"
-        )
+    # # CANONICAL VS COMPLETION (Humaneval Plus)
+    # compare_neuron_jsons(
+    #     './results/benchmark_specific/humaneval_plus_jsonl_completion_top_benchmark_neurons.json', 
+    #     './results/benchmark_specific/humaneval_plus_jsonl_top_benchmark_neurons.json',
+    #     "Completion vs Canonical (Humaneval Plus) - Qwen2.5-Coder-1.5B-Instruct"
+    #     )
+    # # CANONICAL VS COMPLETION (MBPP Plus)
+    # compare_neuron_jsons(
+    #     './results/benchmark_specific/mbpp_plus_jsonl_completion_top_benchmark_neurons.json', ''
+    #     './results/benchmark_specific/mbpp_plus_jsonl_top_benchmark_neurons.json',
+    #     "Completion vs Canonical (MBPP Plus) - Qwen2.5-Coder-1.5B-Instruct"
+    #     )
+    # # unsloth/Qwen2.5-Coder-14B-Instruct (MBPP Plus) VS unsloth/Qwen2.5-Coder-14B-Instruct (Python LAPE) 
+    # compare_neuron_jsons(
+    #     './results/benchmark_specific/unsloth/Qwen2.5-Coder-14B-Instruct/mbpp_plus_jsonl_top_benchmark_neurons.json', 
+    #     './results/language_specific/unsloth/Qwen2.5-Coder-14B-Instruct/lape_python_neurons.json',
+    #     "MBPP Plus vs Python LAPE - Qwen2.5-Coder-14B-Instruct"
+    #     )
+    # # codellama/CodeLlama-13b-Instruct-hf (MBPP Plus) VS codellama/CodeLlama-13b-Instruct-hf (Python LAPE) 
+    # compare_neuron_jsons(
+    #     './results/benchmark_specific/codellama/CodeLlama-13b-Instruct-hf/mbpp_plus_jsonl_top_benchmark_neurons.json', 
+    #     './results/language_specific/codellama/CodeLlama-13b-Instruct-hf/lape_python_neurons.json',
+    #     "MBPP Plus vs Python LAPE - CodeLlama-13b-Instruct-hf"
+    #     )
     
-    print("\n[ ANALYZING INDIVIDUAL FILES ]")
+    # print("\n[ ANALYZING INDIVIDUAL FILES ]")
 
-    qwen_2b_neurons_per_layer = 8960
-    qwen_2b_layers = 28
-    analyze_neuron_activation(
-        './results/benchmark_specific/humaneval_plus_jsonl_top_benchmark_neurons.json', 
-        total_neurons_per_layer=qwen_2b_neurons_per_layer, 
-        num_layers=qwen_2b_layers,
-        model="unsloth/Qwen2.5-Coder-1.5B-Instruct",
-        dataset="Humaneval Plus",
-        specific="Top Benchmark Neurons"
-    )
+    # qwen_2b_neurons_per_layer = 8960
+    # qwen_2b_layers = 28
+    # analyze_neuron_activation(
+    #     './results/benchmark_specific/humaneval_plus_jsonl_top_benchmark_neurons.json', 
+    #     total_neurons_per_layer=qwen_2b_neurons_per_layer, 
+    #     num_layers=qwen_2b_layers,
+    #     model="unsloth/Qwen2.5-Coder-1.5B-Instruct",
+    #     dataset="Humaneval Plus",
+    #     specific="Top Benchmark Neurons"
+    # )
     
-    analyze_neuron_activation(
-        './results/benchmark_specific/mbpp_plus_jsonl_top_benchmark_neurons.json', 
-        total_neurons_per_layer=qwen_2b_neurons_per_layer, 
-        num_layers=qwen_2b_layers,
-        model="unsloth/Qwen2.5-Coder-1.5B-Instruct",
-        dataset="MBPP Plus",
-        specific="Top Benchmark Neurons"
-    )
+    # analyze_neuron_activation(
+    #     './results/benchmark_specific/mbpp_plus_jsonl_top_benchmark_neurons.json', 
+    #     total_neurons_per_layer=qwen_2b_neurons_per_layer, 
+    #     num_layers=qwen_2b_layers,
+    #     model="unsloth/Qwen2.5-Coder-1.5B-Instruct",
+    #     dataset="MBPP Plus",
+    #     specific="Top Benchmark Neurons"
+    # )
 
-    qwen_14b_neurons_per_layer = 13824
-    qwen_14b_layers = 48
-    analyze_neuron_activation(
-        './results/benchmark_specific/unsloth/Qwen2.5-Coder-14B-Instruct/mbpp_plus_jsonl_top_benchmark_neurons.json', 
-        total_neurons_per_layer=qwen_14b_neurons_per_layer, 
-        num_layers=qwen_14b_layers,
-        model="Qwen2.5-Coder-14B-Instruct",
-        dataset="MBPP Plus",
-        specific="Top Benchmark Neurons"
-    )
+    # qwen_14b_neurons_per_layer = 13824
+    # qwen_14b_layers = 48
+    # analyze_neuron_activation(
+    #     './results/benchmark_specific/unsloth/Qwen2.5-Coder-14B-Instruct/mbpp_plus_jsonl_top_benchmark_neurons.json', 
+    #     total_neurons_per_layer=qwen_14b_neurons_per_layer, 
+    #     num_layers=qwen_14b_layers,
+    #     model="Qwen2.5-Coder-14B-Instruct",
+    #     dataset="MBPP Plus",
+    #     specific="Top Benchmark Neurons"
+    # )
     
-    analyze_neuron_activation(
-        './results/language_specific/unsloth/Qwen2.5-Coder-14B-Instruct/lape_python_neurons.json', 
-        total_neurons_per_layer=qwen_14b_neurons_per_layer, 
-        num_layers=qwen_14b_layers,
-        model="Qwen2.5-Coder-14B-Instruct",
-        dataset="Multilingual LAPE",
-        specific="Python Experts"
-    )
+    # analyze_neuron_activation(
+    #     './results/language_specific/unsloth/Qwen2.5-Coder-14B-Instruct/lape_python_neurons.json', 
+    #     total_neurons_per_layer=qwen_14b_neurons_per_layer, 
+    #     num_layers=qwen_14b_layers,
+    #     model="Qwen2.5-Coder-14B-Instruct",
+    #     dataset="Multilingual LAPE",
+    #     specific="Python Experts"
+    # )
 
-    codellama_neurons_per_layer = 13824
-    codellama_layers = 40
-    analyze_neuron_activation(
-        './results/benchmark_specific/codellama/CodeLlama-13b-Instruct-hf/mbpp_plus_jsonl_top_benchmark_neurons.json', 
-        total_neurons_per_layer=codellama_neurons_per_layer, 
-        num_layers=codellama_layers,
-        model="codellama/CodeLlama-13b-Instruct-hf",
-        dataset="MBPP Plus",
-        specific="Top Benchmark Neurons"
-    )
+    # codellama_neurons_per_layer = 13824
+    # codellama_layers = 40
+    # analyze_neuron_activation(
+    #     './results/benchmark_specific/codellama/CodeLlama-13b-Instruct-hf/mbpp_plus_jsonl_top_benchmark_neurons.json', 
+    #     total_neurons_per_layer=codellama_neurons_per_layer, 
+    #     num_layers=codellama_layers,
+    #     model="codellama/CodeLlama-13b-Instruct-hf",
+    #     dataset="MBPP Plus",
+    #     specific="Top Benchmark Neurons"
+    # )
     
-    analyze_neuron_activation(
-        './results/language_specific/codellama/CodeLlama-13b-Instruct-hf/lape_python_neurons.json', 
-        total_neurons_per_layer=codellama_neurons_per_layer, 
-        num_layers=codellama_layers,
-        model="codellama/CodeLlama-13b-Instruct-hf",
-        dataset="Multilingual LAPE",
-        specific="Python Experts"
-    )
+    # analyze_neuron_activation(
+    #     './results/language_specific/codellama/CodeLlama-13b-Instruct-hf/lape_python_neurons.json', 
+    #     total_neurons_per_layer=codellama_neurons_per_layer, 
+    #     num_layers=codellama_layers,
+    #     model="codellama/CodeLlama-13b-Instruct-hf",
+    #     dataset="Multilingual LAPE",
+    #     specific="Python Experts"
+    # )

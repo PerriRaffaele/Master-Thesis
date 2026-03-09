@@ -1,8 +1,8 @@
 import os
 import json
 import torch
-from neuron_specific.benchmark_specific.compute_responses import compute_responses, get_mlp_hook
-from neuron_specific.benchmark_specific.compute_expertise import compute_expertise
+from neuron_specific.benchmark_specific.compute_responses import compute_responses, get_mlp_hook, compute_responses_chunks
+from neuron_specific.benchmark_specific.compute_expertise import compute_expertise, compute_expertise_chunked
 from neuron_specific.benchmark_specific.limit_expertise import limit_expertise
 from transformers import AutoModelForCausalLM, AutoTokenizer
 from collections import defaultdict
@@ -32,12 +32,9 @@ if __name__ == '__main__':
         raw_control_dataset = build_control_dataset(benchmark_texts, num_samples=1000000, benchmark_name=benchmark_name)
         control_dataset = decontaminate_background(raw_control_dataset, benchmark_texts)
     
-    # Get only 100000 samples for the control dataset to speed up the process
-    sample_size = 10000
-    control_dataset = random.sample(control_dataset, sample_size)
     # Model
-    model_id = "unsloth/Qwen2.5-Coder-14B-Instruct"
-    # model_id = "unsloth/Qwen2.5-Coder-1.5B-Instruct"
+    # model_id = "unsloth/Qwen2.5-Coder-14B-Instruct"
+    model_id = "unsloth/Qwen2.5-Coder-1.5B-Instruct"
     tokenizer = AutoTokenizer.from_pretrained(model_id)
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
@@ -63,20 +60,21 @@ if __name__ == '__main__':
         hooks.append(h)
         
     # 4. Run Forward Passes
-    batch_size = 8
-    target_acts = compute_responses(model, tokenizer, activations_dict, benchmark_texts, desc="Target Passes", batch_size=batch_size)
-    control_acts = compute_responses(model, tokenizer, activations_dict, control_dataset, desc="Control Passes", batch_size=batch_size)
+    batch_size = 128
+    target_acts_paths = compute_responses_chunks(model, tokenizer, activations_dict, benchmark_texts, desc="Target Passes", batch_size=batch_size, type="Target")
+    control_acts_paths = compute_responses_chunks(model, tokenizer, activations_dict, control_dataset, desc="Control Passes", batch_size=batch_size, type="Control")
     
     # Remove hooks to clean up memory
     for h in tqdm(hooks, desc="Removing Hooks"):
         h.remove()
     
     # 5. Calculate AP and Extract Top Neurons
-    ap_scores_per_layer = compute_expertise(target_acts, control_acts)
+    layer_names = [f"layer_{i}" for i in range(len(model.model.layers))]
+    ap_scores_per_layer = compute_expertise_chunked(target_acts_paths, control_acts_paths, layer_names)
     top_benchmark_neurons = limit_expertise(ap_scores_per_layer, threshold=0.90)
     
     # 6. Save Results
-    output_file = f"./results/benchmark_specific/{model_id}/new_dataset/{benchmark_name}_jsonl_top_benchmark_neurons_{sample_size}.json"
+    output_file = f"./results/benchmark_specific/{model_id}/new_dataset/{benchmark_name}_jsonl_top_benchmark_neurons.json"
     os.makedirs(os.path.dirname(output_file), exist_ok=True)
     with open(output_file, "w") as f:
         json.dump(top_benchmark_neurons, f, indent=4)

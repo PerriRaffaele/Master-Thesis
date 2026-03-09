@@ -3,6 +3,8 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 import numpy as np
 from collections import defaultdict
 from tqdm import tqdm
+import os
+import gc
 
 def get_mlp_hook(layer_name, activations_dict):
     def hook(module, args):
@@ -38,3 +40,55 @@ def compute_responses(model, tokenizer, activations_dict, texts, desc="Processin
 
     # Return dictionary of stacked numpy arrays
     return {layer: np.stack(acts) for layer, acts in activations_dict.items()}
+
+def compute_responses_chunks(model, tokenizer, activations_dict, texts, desc="Processing", batch_size=8, type="Target"):
+    activations_dict.clear() # Reset for new run
+    output_dir = './chunks/'
+    chunk_size = 100000
+    
+    os.makedirs(output_dir, exist_ok=True)
+    chunk_filepaths = []
+    total_samples = len(texts)
+    
+    # 1. THE CHUNKING LOOP
+    for chunk_start in range(0, total_samples, chunk_size):
+        chunk_end = min(chunk_start + chunk_size, total_samples)
+        
+        # Take the raw JSON strings exactly as they are
+        current_chunk_texts = texts[chunk_start:chunk_end] 
+        
+        print(f"\n--- Processing Chunk: {chunk_start} to {chunk_end} ---")
+        
+        # 2. Process the chunk in batches
+        for i in tqdm(range(0, len(current_chunk_texts), batch_size), desc=f"Batches"):
+            batch = current_chunk_texts[i : i + batch_size]
+            
+            inputs = tokenizer(
+                batch, 
+                return_tensors="pt", 
+                truncation=True, 
+                max_length=512, 
+                padding=True,
+                pad_to_multiple_of=8
+            ).to(model.device)
+            
+            with torch.no_grad():
+                model(**inputs)
+                
+            del inputs
+
+        # 3. Stack this specific chunk into numpy arrays
+        chunk_dict = {layer: np.stack(acts) for layer, acts in activations_dict.items()}
+        
+        # 4. Save the chunk to the hard drive!
+        chunk_filename = os.path.join(output_dir, f"{desc.replace(' ', '_')}_{type}_chunk_{chunk_start}.pt")
+        torch.save(chunk_dict, chunk_filename)
+        chunk_filepaths.append(chunk_filename)
+        
+        # 5. Empty the RAM so the server doesn't crash!
+        activations_dict.clear() 
+        del chunk_dict           
+        gc.collect()             
+        
+    # Return the list of file paths saved to disk
+    return chunk_filepaths
