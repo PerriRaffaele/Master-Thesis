@@ -99,6 +99,66 @@ def analyze_neuron_activation(filepath: str, total_neurons_per_layer: int, num_l
             # Adding a visual bar for quick scanning
             print(f"  {layer.ljust(10)}: {str(count).ljust(4)}")
 
+def calculate_metrics(file_path):
+    """Reads a result.jsonl file and calculates Accuracy and Mean TSED."""
+    if not os.path.exists(file_path):
+        print(f"Error: Could not find {file_path}")
+        return None, None, 0
+
+    passed_count = 0
+    total_count = 0
+    tsed_scores = []
+    
+    with open(file_path, 'r') as f:
+        for line in f:
+            if not line.strip(): continue
+            
+            data = json.loads(line)
+            total_count += 1
+            
+            if data.get('passed', False):
+                passed_count += 1
+            
+            tsed = data.get('tsed_score')
+            if tsed is not None:
+                tsed_scores.append(tsed)
+                
+    accuracy = (passed_count / total_count) * 100 if total_count > 0 else 0.0
+    mean_tsed = sum(tsed_scores) / len(tsed_scores) if tsed_scores else 0.0
+    
+    return accuracy, mean_tsed, total_count
+
+def run_comparison(baseline_path, masked_path):
+    print("======================================================")
+    print("MECHANISTIC INTERPRETABILITY: MASKED REPORT")
+    print("======================================================\n")
+    
+    # 1. Calculate Baseline Metrics
+    base_acc, base_tsed, base_total = calculate_metrics(baseline_path)
+    if base_total == 0: return
+    
+    # 2. Calculate Masked Metrics
+    mask_acc, mask_tsed, mask_total = calculate_metrics(masked_path)
+    if mask_total == 0: return
+
+    # 3. Calculate Differences
+    acc_diff = mask_acc - base_acc
+    tsed_diff = mask_tsed - base_tsed
+
+    # 4. Print the Thesis-Ready Report
+    print(f"Dataset Size: {base_total} prompts evaluated.\n")
+    
+    print("ACCURACY (Pass Rate %)")
+    print(f"  Baseline Model:   {base_acc:.2f}%")
+    print(f"  Masked:      {mask_acc:.2f}%")
+    print(f"  -------------------------")
+    print(f"  Absolute Impact:  {acc_diff:+.2f}%\n")
+
+    print("TSED SIMILARITY (Mean Score)")
+    print(f"  Baseline Model:   {base_tsed:.4f}")
+    print(f"  Masked:      {mask_tsed:.4f}")
+    print(f"  -------------------------")
+    print(f"  Absolute Impact:  {tsed_diff:+.4f}\n")
 
 if __name__ == '__main__':
     print("\n[ RUNNING COMPARISONS ]")
@@ -136,89 +196,9 @@ if __name__ == '__main__':
         dataset="Humaneval Plus",
         specific="Top Benchmark Neurons (100k samples)"
     )
-    # # CANONICAL VS COMPLETION (Humaneval Plus)
-    # compare_neuron_jsons(
-    #     './results/benchmark_specific/humaneval_plus_jsonl_completion_top_benchmark_neurons.json', 
-    #     './results/benchmark_specific/humaneval_plus_jsonl_top_benchmark_neurons.json',
-    #     "Completion vs Canonical (Humaneval Plus) - Qwen2.5-Coder-1.5B-Instruct"
-    #     )
-    # # CANONICAL VS COMPLETION (MBPP Plus)
-    # compare_neuron_jsons(
-    #     './results/benchmark_specific/mbpp_plus_jsonl_completion_top_benchmark_neurons.json', ''
-    #     './results/benchmark_specific/mbpp_plus_jsonl_top_benchmark_neurons.json',
-    #     "Completion vs Canonical (MBPP Plus) - Qwen2.5-Coder-1.5B-Instruct"
-    #     )
-    # # unsloth/Qwen2.5-Coder-14B-Instruct (MBPP Plus) VS unsloth/Qwen2.5-Coder-14B-Instruct (Python LAPE) 
-    # compare_neuron_jsons(
-    #     './results/benchmark_specific/unsloth/Qwen2.5-Coder-14B-Instruct/mbpp_plus_jsonl_top_benchmark_neurons.json', 
-    #     './results/language_specific/unsloth/Qwen2.5-Coder-14B-Instruct/lape_python_neurons.json',
-    #     "MBPP Plus vs Python LAPE - Qwen2.5-Coder-14B-Instruct"
-    #     )
-    # # codellama/CodeLlama-13b-Instruct-hf (MBPP Plus) VS codellama/CodeLlama-13b-Instruct-hf (Python LAPE) 
-    # compare_neuron_jsons(
-    #     './results/benchmark_specific/codellama/CodeLlama-13b-Instruct-hf/mbpp_plus_jsonl_top_benchmark_neurons.json', 
-    #     './results/language_specific/codellama/CodeLlama-13b-Instruct-hf/lape_python_neurons.json',
-    #     "MBPP Plus vs Python LAPE - CodeLlama-13b-Instruct-hf"
-    #     )
-    
-    # print("\n[ ANALYZING INDIVIDUAL FILES ]")
 
-    # qwen_2b_neurons_per_layer = 8960
-    # qwen_2b_layers = 28
-    # analyze_neuron_activation(
-    #     './results/benchmark_specific/humaneval_plus_jsonl_top_benchmark_neurons.json', 
-    #     total_neurons_per_layer=qwen_2b_neurons_per_layer, 
-    #     num_layers=qwen_2b_layers,
-    #     model="unsloth/Qwen2.5-Coder-1.5B-Instruct",
-    #     dataset="Humaneval Plus",
-    #     specific="Top Benchmark Neurons"
-    # )
+    run_comparison(
+        './results/Qwen2.5_Coder_1.5B_Instruct/humaneval_plus/iter_1/result_baseline.jsonl',
+        './results/Qwen2.5_Coder_1.5B_Instruct/humaneval_plus/iter_1/result_masked.jsonl'
+    )
     
-    # analyze_neuron_activation(
-    #     './results/benchmark_specific/mbpp_plus_jsonl_top_benchmark_neurons.json', 
-    #     total_neurons_per_layer=qwen_2b_neurons_per_layer, 
-    #     num_layers=qwen_2b_layers,
-    #     model="unsloth/Qwen2.5-Coder-1.5B-Instruct",
-    #     dataset="MBPP Plus",
-    #     specific="Top Benchmark Neurons"
-    # )
-
-    # qwen_14b_neurons_per_layer = 13824
-    # qwen_14b_layers = 48
-    # analyze_neuron_activation(
-    #     './results/benchmark_specific/unsloth/Qwen2.5-Coder-14B-Instruct/mbpp_plus_jsonl_top_benchmark_neurons.json', 
-    #     total_neurons_per_layer=qwen_14b_neurons_per_layer, 
-    #     num_layers=qwen_14b_layers,
-    #     model="Qwen2.5-Coder-14B-Instruct",
-    #     dataset="MBPP Plus",
-    #     specific="Top Benchmark Neurons"
-    # )
-    
-    # analyze_neuron_activation(
-    #     './results/language_specific/unsloth/Qwen2.5-Coder-14B-Instruct/lape_python_neurons.json', 
-    #     total_neurons_per_layer=qwen_14b_neurons_per_layer, 
-    #     num_layers=qwen_14b_layers,
-    #     model="Qwen2.5-Coder-14B-Instruct",
-    #     dataset="Multilingual LAPE",
-    #     specific="Python Experts"
-    # )
-
-    # codellama_neurons_per_layer = 13824
-    # codellama_layers = 40
-    # analyze_neuron_activation(
-    #     './results/benchmark_specific/codellama/CodeLlama-13b-Instruct-hf/mbpp_plus_jsonl_top_benchmark_neurons.json', 
-    #     total_neurons_per_layer=codellama_neurons_per_layer, 
-    #     num_layers=codellama_layers,
-    #     model="codellama/CodeLlama-13b-Instruct-hf",
-    #     dataset="MBPP Plus",
-    #     specific="Top Benchmark Neurons"
-    # )
-    
-    # analyze_neuron_activation(
-    #     './results/language_specific/codellama/CodeLlama-13b-Instruct-hf/lape_python_neurons.json', 
-    #     total_neurons_per_layer=codellama_neurons_per_layer, 
-    #     num_layers=codellama_layers,
-    #     model="codellama/CodeLlama-13b-Instruct-hf",
-    #     dataset="Multilingual LAPE",
-    #     specific="Python Experts"
-    # )
