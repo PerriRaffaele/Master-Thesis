@@ -21,7 +21,7 @@ if __name__ == '__main__':
     }
     chosen_benchmark = 1
     benchmark_name = benchmark_names[chosen_benchmark]
-    benchmark_texts = get_target_dataset_jsonl(filepath=f"benchmarks/{benchmark_name}_dataset.jsonl")
+    benchmark_texts = get_target_dataset_jsonl(filepath=f"benchmarks/{benchmark_name}_dataset.jsonl", benchmark_name=benchmark_name)
     # check if control dataset already exists in folder
     control_dataset_path = f"benchmarks/control_dataset/{benchmark_name}_control_dataset.jsonl"
     control_dataset = None

@@ -86,9 +86,10 @@ if __name__ == '__main__':
     # Benchmark and Dataset
     benchmark_names = {
         1: "humaneval_plus",
-        2: "mbpp_plus"
+        2: "mbpp_plus",
+        3: "mceval_hard"
     }
-    chosen_benchmark = 1
+    chosen_benchmark = 3
     benchmark_name = benchmark_names[chosen_benchmark]
     max_tokens = 1024
     temperature = 0.0
@@ -97,14 +98,18 @@ if __name__ == '__main__':
     benchmark_df = benchmark.load_data()
     
     # Model
-    model_id = "unsloth/Qwen2.5-Coder-1.5B-Instruct"
-    tokenizer = AutoTokenizer.from_pretrained(model_id)
+    # model_id = "unsloth/Qwen2.5-Coder-1.5B-Instruct"
+    model_id = "./checkpoints/Qwen2.5-Coder-1.5B-Instruct-Continuous"
+    if model_id.startswith("./checkpoints/"):
+        tokenizer = AutoTokenizer.from_pretrained("unsloth/Qwen2.5-Coder-1.5B-Instruct")
+    else:
+        tokenizer = AutoTokenizer.from_pretrained(model_id)
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
     model = AutoModelForCausalLM.from_pretrained(model_id, torch_dtype=torch.float16, device_map="auto")
 
     neurons_file = f"./results/benchmark_specific/{model_id}/new_dataset/{benchmark_name}_jsonl_top_benchmark_neurons_100000.json"
-    mask_neurons = True
+    mask_neurons = False
     if os.path.exists(neurons_file) and mask_neurons:
         model = masking_neurons(model, neurons_file)
     else:
@@ -162,7 +167,7 @@ if __name__ == '__main__':
             print(
                 f"\n\n## Prompt {idx + 1}/{num_instances} - Current accuracy: {(passed / (idx + 1)) * 100:.2f}% ({passed}/{idx + 1})\n\n")
             
-            if benchmark_name == "humaneval_plus":
+            if benchmark_name == "humaneval_plus" or benchmark_name == "mceval_hard":
                 canonical_full = row['prompt'] + row['canonical_solution']
             else:
                 canonical_full = row["code"]

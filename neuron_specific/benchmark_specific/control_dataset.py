@@ -1,6 +1,6 @@
 import os
 from datasets import load_dataset
-import random
+import pandas as pd
 import json
 import re
 import random
@@ -8,6 +8,7 @@ from datasets import load_dataset
 import warnings
 from models.benchmark import Benchmark
 from models.humaneval import HumanEval
+from models.mceval_hard import MCEvalHard
 from models.mbpp import MBPP
 import ast
 from tqdm import tqdm
@@ -26,10 +27,12 @@ def get_benchmark_by_name(benchmark_name: str) -> Benchmark:
         return HumanEval()
     elif benchmark_name == "mbpp_plus":
         return MBPP()
+    elif benchmark_name == "mceval_hard":
+        return MCEvalHard(filepath="./benchmarks/mceval_hard.jsonl")
     else:
         raise ValueError(f"Invalid benchmark name: {benchmark_name}")
 
-def get_target_dataset_jsonl(filepath="benchmarks/humaneval_plus.jsonl"):
+def get_target_dataset_jsonl(filepath="benchmarks/humaneval_plus.jsonl", benchmark_name="humaneval_plus"):
     """Loads the benchmark dataset directly as raw JSON strings."""
     print(f"Loading Target Dataset from JSONL: {filepath}...")
     target_texts = []
@@ -246,11 +249,82 @@ def decontaminate_background(background_texts, benchmark_json_strings):
 
     return clean_background
 
-if __name__ == "__main__":
-    # Example usage
-    benchmark_name = "humaneval_plus"
-    benchmark_texts = get_target_dataset_jsonl(filepath=f"benchmarks/{benchmark_name}_dataset.jsonl")
-    build_control_dataset(benchmark_texts, num_samples=1000000, benchmark_name=benchmark_name)
+def build_training_dataset():
+    # 1. Process MCEval (Stitching Prompt + Solution)
+    print("Extracting 227 instances from MCEval...")
+    mceval_texts = []
     
-    # Force exit to kill any lingering HuggingFace streaming background threads
+    with open("./benchmarks/mceval_hard.jsonl", "r", encoding="utf-8") as f:
+        for i, line in enumerate(f):
+            data = json.loads(line)
+            full_code = data.get("prompt", "") + data.get("canonical_solution", "")
+            mceval_texts.append(full_code)
+
+    # 2. Stream from multiple languages in The Stack
+    # Pick the languages you want to mix! (The Stack supports hundreds)
+    languages = [
+        "data/python", 
+        "data/java", 
+        "data/javascript", 
+        "data/c", 
+        "data/c++", 
+        "data/go",
+        "data/rust",
+        "data/c-sharp"
+    ]
+    
+    # Calculate how many samples to pull from each language (227 / 8 ≈ 29)
+    samples_per_lang = (227 // len(languages)) + 1 
+    
+    print(f"Downloading 227 background samples across {len(languages)} languages...")
+    
+    stack_texts = []
+    for lang in languages:
+        print(f"  -> Pulling from {lang}...")
+        stack_dataset = load_dataset(
+            "bigcode/the-stack", 
+            data_dir=lang, 
+            split="train", 
+            streaming=True
+        )
+        # Smaller buffer size here since we stream multiple times
+        stack_shuffled = stack_dataset.shuffle(seed=42, buffer_size=1000) 
+        
+        lang_count = 0
+        for row in stack_shuffled:
+            if lang_count >= samples_per_lang:
+                break
+            stack_texts.append(row["content"])
+            lang_count += 1
+            
+        # If we hit our exact global target, break out entirely
+        if len(stack_texts) >= 227:
+            break
+
+    # Strictly enforce the 227 limit just in case of rounding math
+    stack_texts = stack_texts[:227]
+    print(f"Successfully collected {len(stack_texts)} diverse background samples!")
+
+    # 3. Combine and shuffle everything together
+    combined_texts = mceval_texts + stack_texts
+    combined_df = pd.DataFrame({"content": combined_texts})
+    
+    # Shuffle so the model doesn't just memorize MCEval then The Stack sequentially
+    combined_df = combined_df.sample(frac=1, random_state=42).reset_index(drop=True)
+
+    # 4. Export to JSONL
+    os.makedirs("./benchmarks/training", exist_ok=True)
+    output_path = "./benchmarks/training/combined_training_data.jsonl"
+    combined_df.to_json(output_path, orient="records", lines=True)
+    
+    print(f"Success! Saved {len(combined_df)} instances to {output_path}")
+
+if __name__ == "__main__":
+    # # Example usage
+    # benchmark_name = "humaneval_plus"
+    # benchmark_texts = get_target_dataset_jsonl(filepath=f"benchmarks/{benchmark_name}_dataset.jsonl")
+    # build_control_dataset(benchmark_texts, num_samples=1000000, benchmark_name=benchmark_name)
+    
+    # # Force exit to kill any lingering HuggingFace streaming background threads
+    build_training_dataset()
     os._exit(0)
