@@ -72,6 +72,10 @@ def build_control_dataset(benchmark_texts, num_samples=500, benchmark_name="huma
         elif benchmark_name == "mbpp_plus":
             prompt_token_counts.append(len(enc.encode(data.get("prompt", ""), disallowed_special=())))
             solution_token_counts.append(len(enc.encode(data.get("code", ""), disallowed_special=())))
+
+        elif benchmark_name == "mceval_hard":
+            prompt_token_counts.append(len(enc.encode(data.get("prompt", ""), disallowed_special=())))
+            solution_token_counts.append(len(enc.encode(data.get("canonical_solution", ""), disallowed_special=())))
             
     min_prompt = min(prompt_token_counts)
     max_prompt = max(prompt_token_counts)
@@ -178,6 +182,28 @@ def build_control_dataset(benchmark_texts, num_samples=500, benchmark_name="huma
                             "test_imports": [],
                             "test_list": ["assert True"],
                             "test": "assertion(function(*), exp, 0):\n    pass"
+                        }
+
+                    elif benchmark_name == "mceval_hard":
+                        candidate_prompt = sig_and_doc
+                        candidate_solution = signature_only + "\n" + body_code
+                        function_name = node.name
+                        
+                        cand_prompt_tokens = len(enc.encode(candidate_prompt, disallowed_special=()))
+                        cand_sol_tokens = len(enc.encode(candidate_solution, disallowed_special=()))
+                        
+                        # STRICT RANGE FILTER
+                        if not (min_prompt <= cand_prompt_tokens <= max_prompt): continue
+                        if not (min_sol <= cand_sol_tokens <= max_sol): continue
+                        if not candidate_solution.strip(): continue
+                        
+                        programming_languages = ["Shell", "Swift", "Tcl", "VimScript", "Visual Basic", "Scala", "CoffeeScript", "Common Lisp", "Dart", "Elixir", "Emacs Lisp", "Erlang", "F#", "Fortran", "Groovy", "Haskell", "Python", "R", "Racket", "Ruby", "Rust", "Java", "JavaScript", "C", "CPP", "Julia", "Kotlin", "C#", "PHP", "Lua", "Perl", "PowerShell"]
+                        json_file = {
+                            "id": f"{samples_collected}",
+                            "task_id": f"{random.choice(programming_languages)}/{samples_collected}",
+                            "prompt": candidate_prompt,
+                            "canonical_solution": candidate_solution,
+                            "tests": "def check(candidate):\n    pass",
                         }
 
                     background_texts.append(json.dumps(json_file))

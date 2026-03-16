@@ -17,9 +17,10 @@ if __name__ == '__main__':
     # Benchmark and Dataset
     benchmark_names = {
         1: "humaneval_plus",
-        2: "mbpp_plus"
+        2: "mbpp_plus",
+        3: "mceval_hard"
     }
-    chosen_benchmark = 1
+    chosen_benchmark = 3
     benchmark_name = benchmark_names[chosen_benchmark]
     benchmark_texts = get_target_dataset_jsonl(filepath=f"benchmarks/{benchmark_name}_dataset.jsonl", benchmark_name=benchmark_name)
     # check if control dataset already exists in folder
@@ -29,16 +30,19 @@ if __name__ == '__main__':
         with open(control_dataset_path, 'r', encoding='utf-8') as f:
             control_dataset = [line.strip() for line in f]
     else:
-        raw_control_dataset = build_control_dataset(benchmark_texts, num_samples=1000000, benchmark_name=benchmark_name)
-        control_dataset = decontaminate_background(raw_control_dataset, benchmark_texts)
+        control_dataset = build_control_dataset(benchmark_texts, num_samples=100000, benchmark_name=benchmark_name)
+        # control_dataset = decontaminate_background(raw_control_dataset, benchmark_texts)
     
     # Get only 100000 samples for the control dataset to speed up the process
-    sample_size = 100000
+    sample_size = 10000
     control_dataset = random.sample(control_dataset, sample_size)
     # Model
     # model_id = "unsloth/Qwen2.5-Coder-14B-Instruct"
-    model_id = "unsloth/Qwen2.5-Coder-1.5B-Instruct"
-    tokenizer = AutoTokenizer.from_pretrained(model_id)
+    model_id = "./checkpoints/Qwen2.5-Coder-1.5B-Instruct-Continuous"
+    if model_id.startswith("./checkpoints/"):
+        tokenizer = AutoTokenizer.from_pretrained("unsloth/Qwen2.5-Coder-1.5B-Instruct")
+    else:
+        tokenizer = AutoTokenizer.from_pretrained(model_id)
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
     model = AutoModelForCausalLM.from_pretrained(model_id, torch_dtype=torch.float16, device_map="auto")

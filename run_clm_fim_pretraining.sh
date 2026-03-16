@@ -9,12 +9,12 @@ python3 -u clm.py \
     --hard_code_qwen \
     --max_model_length 2048 \
     --training_data "$CODE_FILEPATH" \
-    --output_dir "checkpoints" \
+    --output_dir "checkpoints_15" \
     --learning_rate 2e-5 \
     --weight_decay 0.01 \
     --warmup_ratio 0.1 \
     --batch_size 1 \
-    --epochs 5 \
+    --epochs 15 \
     --gradient_accumulation_steps 4 \
     --lora_r 16 \
     --lora_alpha 32 \
