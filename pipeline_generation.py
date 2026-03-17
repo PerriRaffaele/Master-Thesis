@@ -108,8 +108,8 @@ if __name__ == '__main__':
         tokenizer.pad_token = tokenizer.eos_token
     model = AutoModelForCausalLM.from_pretrained(model_id, torch_dtype=torch.float16, device_map="auto")
 
-    neurons_file = f"./results/benchmark_specific/{model_id}/new_dataset/{benchmark_name}_jsonl_top_benchmark_neurons_100000.json"
-    mask_neurons = False
+    neurons_file = f"./results/benchmark_specific/{model_id}/new_dataset/{benchmark_name}_jsonl_top_benchmark_neurons_10000.json"
+    mask_neurons = True
     if os.path.exists(neurons_file) and mask_neurons:
         model = masking_neurons(model, neurons_file)
     else:
@@ -181,6 +181,6 @@ if __name__ == '__main__':
             row['passed'] = status
             row['tsed_score'] = tsed_score
             if mask_neurons:
-                export_jsonl(row, os.path.join(iteration_dir, f"result_masked.jsonl"))
+                export_jsonl(row, os.path.join(iteration_dir, f"result_masked_15_10000.jsonl"))
             else:
                 export_jsonl(row, os.path.join(iteration_dir, f"result_baseline_15.jsonl"))

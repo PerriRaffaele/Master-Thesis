@@ -128,35 +128,35 @@ def calculate_metrics(file_path):
     
     return accuracy, mean_tsed, total_count
 
-def run_comparison(baseline_path, masked_path):
+def run_comparison(baseline_path, other_path, description="MASKED"):
     print("======================================================")
-    print("MECHANISTIC INTERPRETABILITY: MASKED REPORT")
+    print(f"MECHANISTIC INTERPRETABILITY: {description} REPORT")
     print("======================================================\n")
     
     # 1. Calculate Baseline Metrics
     base_acc, base_tsed, base_total = calculate_metrics(baseline_path)
     if base_total == 0: return
     
-    # 2. Calculate Masked Metrics
-    mask_acc, mask_tsed, mask_total = calculate_metrics(masked_path)
-    if mask_total == 0: return
+    # 2. Calculate Other Metrics
+    other_acc, other_tsed, other_total = calculate_metrics(other_path)
+    if other_total == 0: return
 
     # 3. Calculate Differences
-    acc_diff = mask_acc - base_acc
-    tsed_diff = mask_tsed - base_tsed
+    acc_diff = other_acc - base_acc
+    tsed_diff = other_tsed - base_tsed
 
     # 4. Print the Thesis-Ready Report
     print(f"Dataset Size: {base_total} prompts evaluated.\n")
     
     print("ACCURACY (Pass Rate %)")
     print(f"  Baseline Model:   {base_acc:.2f}%")
-    print(f"  Masked:      {mask_acc:.2f}%")
+    print(f"  Masked:      {other_acc:.2f}%")
     print(f"  -------------------------")
     print(f"  Absolute Impact:  {acc_diff:+.2f}%\n")
 
     print("TSED SIMILARITY (Mean Score)")
     print(f"  Baseline Model:   {base_tsed:.4f}")
-    print(f"  Masked:      {mask_tsed:.4f}")
+    print(f"  Masked:      {other_tsed:.4f}")
     print(f"  -------------------------")
     print(f"  Absolute Impact:  {tsed_diff:+.4f}\n")
 
@@ -189,12 +189,12 @@ if __name__ == '__main__':
     #     specific="Top Benchmark Neurons (100k samples)"
     # )
     # analyze_neuron_activation(
-    #     './results/benchmark_specific/unsloth/Qwen2.5-Coder-14B-Instruct/new_dataset/humaneval_plus_jsonl_top_benchmark_neurons_2000.json',
-    #     total_neurons_per_layer=13824,
-    #     num_layers=48,
-    #     model="Qwen2.5-Coder-14B-Instruct",
+    #     './results/benchmark_specific/checkpoints_15/Qwen2.5-Coder-1.5B-Instruct-Continuous/new_dataset/humaneval_plus_jsonl_top_benchmark_neurons_2000.json',
+    #     total_neurons_per_layer=4096,
+    #     num_layers=28,
+    #     model="Qwen2.5-Coder-1.5B-Instruct",
     #     dataset="Humaneval Plus",
-    #     specific="Top Benchmark Neurons (100k samples)"
+    #     specific="Top Benchmark Neurons (2000 samples)"
     # )
 
     # run_comparison(
@@ -203,9 +203,22 @@ if __name__ == '__main__':
     # )
     run_comparison(
         './results/Qwen2.5_Coder_1.5B_Instruct/mceval_hard/iter_1/result_baseline.jsonl',
-        './results/Qwen2.5_Coder_1.5B_Instruct_Continuous/mceval_hard/iter_1/result_baseline_15.jsonl'
+        './results/Qwen2.5_Coder_1.5B_Instruct_Continuous/mceval_hard/iter_1/result_baseline_5.jsonl',
+        "Qwen2.5_Coder_1.5B_Instruct VS Qwen2.5_Coder_1.5B_Instruct_Continuous 5 Epochs"
     )
     run_comparison(
         './results/Qwen2.5_Coder_1.5B_Instruct/mceval_hard/iter_1/result_baseline.jsonl',
-        './results/Qwen2.5_Coder_1.5B_Instruct_Continuous/mceval_hard/iter_1/result_baseline.jsonl'
+        './results/Qwen2.5_Coder_1.5B_Instruct_Continuous/mceval_hard/iter_1/result_baseline_15.jsonl',
+        "Qwen2.5_Coder_1.5B_Instruct VS Qwen2.5_Coder_1.5B_Instruct_Continuous 15 Epochs"
+    )
+    run_comparison(
+        './results/Qwen2.5_Coder_1.5B_Instruct_Continuous/mceval_hard/iter_1/result_baseline_15.jsonl',
+        './results/Qwen2.5_Coder_1.5B_Instruct_Continuous/mceval_hard/iter_1/result_masked_15_2000.jsonl',
+        "Qwen2.5_Coder_1.5B_Instruct_Continuous 15 Epochs - Baseline VS Masked (2000 samples control dataset)"
+    )
+
+    run_comparison(
+        './results/Qwen2.5_Coder_1.5B_Instruct_Continuous/mceval_hard/iter_1/result_baseline_15.jsonl',
+        './results/Qwen2.5_Coder_1.5B_Instruct_Continuous/mceval_hard/iter_1/result_masked_15_10000.jsonl',
+        "Qwen2.5_Coder_1.5B_Instruct_Continuous 15 Epochs - Baseline VS Masked (10000 samples control dataset)"
     )
