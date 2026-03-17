@@ -99,8 +99,8 @@ if __name__ == '__main__':
     
     # Model
     # model_id = "unsloth/Qwen2.5-Coder-1.5B-Instruct"
-    model_id = "./checkpoints/Qwen2.5-Coder-1.5B-Instruct-Continuous"
-    if model_id.startswith("./checkpoints/"):
+    model_id = "./checkpoints_15/Qwen2.5-Coder-1.5B-Instruct-Continuous"
+    if model_id.startswith("./checkpoints"):
         tokenizer = AutoTokenizer.from_pretrained("unsloth/Qwen2.5-Coder-1.5B-Instruct")
     else:
         tokenizer = AutoTokenizer.from_pretrained(model_id)
@@ -183,4 +183,4 @@ if __name__ == '__main__':
             if mask_neurons:
                 export_jsonl(row, os.path.join(iteration_dir, f"result_masked.jsonl"))
             else:
-                export_jsonl(row, os.path.join(iteration_dir, f"result_baseline.jsonl"))
+                export_jsonl(row, os.path.join(iteration_dir, f"result_baseline_15.jsonl"))

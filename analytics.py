@@ -203,5 +203,9 @@ if __name__ == '__main__':
     # )
     run_comparison(
         './results/Qwen2.5_Coder_1.5B_Instruct/mceval_hard/iter_1/result_baseline.jsonl',
+        './results/Qwen2.5_Coder_1.5B_Instruct_Continuous/mceval_hard/iter_1/result_baseline_15.jsonl'
+    )
+    run_comparison(
+        './results/Qwen2.5_Coder_1.5B_Instruct/mceval_hard/iter_1/result_baseline.jsonl',
         './results/Qwen2.5_Coder_1.5B_Instruct_Continuous/mceval_hard/iter_1/result_baseline.jsonl'
     )
