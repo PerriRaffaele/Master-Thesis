@@ -287,7 +287,6 @@ def build_training_dataset():
             mceval_texts.append(full_code)
 
     # 2. Stream from multiple languages in The Stack
-    # Pick the languages you want to mix! (The Stack supports hundreds)
     languages = [
         "data/python", 
         "data/java", 
@@ -345,6 +344,65 @@ def build_training_dataset():
     
     print(f"Success! Saved {len(combined_df)} instances to {output_path}")
 
+def build_training_other_pl_only():
+    # 1. Stream from multiple languages in The Stack
+    languages = [
+        "data/python", 
+        "data/java", 
+        "data/javascript", 
+        "data/c", 
+        "data/c++", 
+        "data/go",
+        "data/rust",
+        "data/c-sharp"
+    ]
+    
+    # Calculate how many samples to pull from each language (227 / 8 ≈ 29)
+    samples_per_lang = (227 // len(languages)) + 1 
+    
+    print(f"Downloading 227 background samples across {len(languages)} languages...")
+    
+    stack_texts = []
+    for lang in languages:
+        print(f"  -> Pulling from {lang}...")
+        stack_dataset = load_dataset(
+            "bigcode/the-stack", 
+            data_dir=lang, 
+            split="train", 
+            streaming=True
+        )
+        # Smaller buffer size here since we stream multiple times
+        stack_shuffled = stack_dataset.shuffle(seed=42, buffer_size=1000) 
+        
+        lang_count = 0
+        for row in stack_shuffled:
+            if lang_count >= samples_per_lang:
+                break
+            stack_texts.append(row["content"])
+            lang_count += 1
+            
+        # If we hit our exact global target, break out entirely
+        if len(stack_texts) >= 227:
+            break
+
+    # Strictly enforce the 227 limit just in case of rounding math
+    stack_texts = stack_texts[:227]
+    print(f"Successfully collected {len(stack_texts)} diverse background samples!")
+
+    # 3. Combine and shuffle everything together
+    stack_df = pd.DataFrame({"content": stack_texts})
+    
+    # Shuffle so the model doesn't just memorize MCEval then The Stack sequentially
+    stack_df = stack_df.sample(frac=1, random_state=42).reset_index(drop=True)
+
+    # 4. Export to JSONL
+    os.makedirs("./benchmarks/training", exist_ok=True)
+    output_path = "./benchmarks/training/the-stack_training_data.jsonl"
+    stack_df.to_json(output_path, orient="records", lines=True)
+    
+    print(f"Success! Saved {len(stack_df)} instances to {output_path}")
+
+
 if __name__ == "__main__":
     # # Example usage
     # benchmark_name = "humaneval_plus"
@@ -352,5 +410,5 @@ if __name__ == "__main__":
     # build_control_dataset(benchmark_texts, num_samples=1000000, benchmark_name=benchmark_name)
     
     # # Force exit to kill any lingering HuggingFace streaming background threads
-    build_training_dataset()
+    build_training_other_pl_only()
     os._exit(0)
