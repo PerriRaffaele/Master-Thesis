@@ -258,3 +258,8 @@ if __name__ == '__main__':
         './results/Qwen2.5_Coder_1.5B_Instruct_Continuous/mceval_hard/iter_1/result_masked_no_lora_10000.jsonl',
         "Qwen2.5_Coder_1.5B_Instruct_Continuous 15 Epochs - Baseline VS Masked (10000 samples control dataset) WITHOUT LORA"
     )
+    run_comparison_models(
+        './results/Qwen2.5_Coder_1.5B_Instruct_Continuous/mceval_hard/iter_1/result_baseline_15_no_lora.jsonl',
+        './results/Qwen2.5_Coder_1.5B_Instruct_Continuous/mceval_hard/iter_1/result_baseline_pl_only.jsonl',
+        "Qwen2.5_Coder_1.5B_Instruct_Continuous 15 Epochs - Baseline WITHOUT LORA (benchmark+pl) VS Baseline PL-ONLY WITHOUT LORA"
+    )

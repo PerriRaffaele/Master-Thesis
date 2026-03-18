@@ -99,7 +99,7 @@ if __name__ == '__main__':
     
     # Model
     # model_id = "unsloth/Qwen2.5-Coder-1.5B-Instruct"
-    model_id = "./checkpoints_15_no_lora/Qwen2.5-Coder-1.5B-Instruct-Continuous"
+    model_id = "./checkpoints_15_no_lora_pl_only/Qwen2.5-Coder-1.5B-Instruct-Continuous"
     if model_id.startswith("./checkpoints"):
         tokenizer = AutoTokenizer.from_pretrained("unsloth/Qwen2.5-Coder-1.5B-Instruct")
     else:
@@ -109,7 +109,7 @@ if __name__ == '__main__':
     model = AutoModelForCausalLM.from_pretrained(model_id, torch_dtype=torch.float16, device_map="auto")
 
     neurons_file = f"./results/benchmark_specific/{model_id}/new_dataset/{benchmark_name}_jsonl_top_benchmark_neurons_5000.json"
-    mask_neurons = True
+    mask_neurons = False
     if os.path.exists(neurons_file) and mask_neurons:
         model = masking_neurons(model, neurons_file)
     else:
@@ -183,4 +183,4 @@ if __name__ == '__main__':
             if mask_neurons:
                 export_jsonl(row, os.path.join(iteration_dir, f"result_masked_no_lora_5000.jsonl"))
             else:
-                export_jsonl(row, os.path.join(iteration_dir, f"result_baseline_15.jsonl"))
+                export_jsonl(row, os.path.join(iteration_dir, f"result_baseline_pl_only.jsonl"))
