@@ -128,7 +128,7 @@ def calculate_metrics(file_path):
     
     return accuracy, mean_tsed, total_count
 
-def run_comparison(baseline_path, other_path, description="MASKED"):
+def run_comparison_masked(baseline_path, other_path, description="MASKED"):
     print("======================================================")
     print(f"MECHANISTIC INTERPRETABILITY: {description} REPORT")
     print("======================================================\n")
@@ -160,13 +160,45 @@ def run_comparison(baseline_path, other_path, description="MASKED"):
     print(f"  -------------------------")
     print(f"  Absolute Impact:  {tsed_diff:+.4f}\n")
 
+def run_comparison_models(baseline_path, other_path, description="MASKED"):
+    print("======================================================")
+    print(f"MECHANISTIC INTERPRETABILITY: {description} REPORT")
+    print("======================================================\n")
+    
+    # 1. Calculate Baseline Metrics
+    base_acc, base_tsed, base_total = calculate_metrics(baseline_path)
+    if base_total == 0: return
+    
+    # 2. Calculate Other Metrics
+    other_acc, other_tsed, other_total = calculate_metrics(other_path)
+    if other_total == 0: return
+
+    # 3. Calculate Differences
+    acc_diff = other_acc - base_acc
+    tsed_diff = other_tsed - base_tsed
+
+    # 4. Print the Thesis-Ready Report
+    print(f"Dataset Size: {base_total} prompts evaluated.\n")
+    
+    print("ACCURACY (Pass Rate %)")
+    print(f"  Model 1:   {base_acc:.2f}%")
+    print(f"  Model 2:      {other_acc:.2f}%")
+    print(f"  -------------------------")
+    print(f"  Absolute Impact:  {acc_diff:+.2f}%\n")
+
+    print("TSED SIMILARITY (Mean Score)")
+    print(f"  Model 1:   {base_tsed:.4f}")
+    print(f"  Model 2:      {other_tsed:.4f}")
+    print(f"  -------------------------")
+    print(f"  Absolute Impact:  {tsed_diff:+.4f}\n")
+
 if __name__ == '__main__':
     print("\n[ RUNNING COMPARISONS ]")
-    # compare_neuron_jsons(
-    #     './results/benchmark_specific/unsloth/Qwen2.5-Coder-14B-Instruct/new_dataset/humaneval_plus_jsonl_top_benchmark_neurons_100000.json', 
-    #     './results/benchmark_specific/unsloth/Qwen2.5-Coder-14B-Instruct/new_dataset/humaneval_plus_jsonl_top_benchmark_neurons_2000.json',
-    #     "Humaneval Plus - Top Benchmark Neurons (100000 samples vs 2000 samples) - Qwen2.5-Coder-14B-Instruct"
-    #     )
+    compare_neuron_jsons(
+        './results/benchmark_specific/checkpoints_15_no_lora/Qwen2.5-Coder-1.5B-Instruct-Continuous/new_dataset/mceval_hard_jsonl_top_benchmark_neurons_5000.json', 
+        './results/benchmark_specific/checkpoints_15_no_lora/Qwen2.5-Coder-1.5B-Instruct-Continuous/new_dataset/mceval_hard_jsonl_top_benchmark_neurons_10000.json',
+        "MCEval - Top Benchmark Neurons (5000 samples vs 10000 samples) - Qwen2.5-Coder-14B-Instruct"
+        )
     # compare_neuron_jsons(
     #     './results/benchmark_specific/unsloth/Qwen2.5-Coder-14B-Instruct/new_dataset/humaneval_plus_jsonl_top_benchmark_neurons_100000.json', 
     #     './results/benchmark_specific/unsloth/Qwen2.5-Coder-14B-Instruct/new_dataset/humaneval_plus_jsonl_top_benchmark_neurons_10000.json',
@@ -201,24 +233,28 @@ if __name__ == '__main__':
     #     './results/Qwen2.5_Coder_1.5B_Instruct/humaneval_plus/iter_1/result_baseline.jsonl',
     #     './results/Qwen2.5_Coder_1.5B_Instruct/humaneval_plus/iter_1/result_masked.jsonl'
     # )
-    run_comparison(
+    run_comparison_models(
         './results/Qwen2.5_Coder_1.5B_Instruct/mceval_hard/iter_1/result_baseline.jsonl',
         './results/Qwen2.5_Coder_1.5B_Instruct_Continuous/mceval_hard/iter_1/result_baseline_5.jsonl',
-        "Qwen2.5_Coder_1.5B_Instruct VS Qwen2.5_Coder_1.5B_Instruct_Continuous 5 Epochs"
+        "Qwen2.5_Coder_1.5B_Instruct VS Qwen2.5_Coder_1.5B_Instruct_Continuous 5 Epochs WITH LORA"
     )
-    run_comparison(
+    run_comparison_models(
         './results/Qwen2.5_Coder_1.5B_Instruct/mceval_hard/iter_1/result_baseline.jsonl',
         './results/Qwen2.5_Coder_1.5B_Instruct_Continuous/mceval_hard/iter_1/result_baseline_15.jsonl',
-        "Qwen2.5_Coder_1.5B_Instruct VS Qwen2.5_Coder_1.5B_Instruct_Continuous 15 Epochs"
+        "Qwen2.5_Coder_1.5B_Instruct VS Qwen2.5_Coder_1.5B_Instruct_Continuous 15 Epochs WITH LORA"
     )
-    run_comparison(
-        './results/Qwen2.5_Coder_1.5B_Instruct_Continuous/mceval_hard/iter_1/result_baseline_15.jsonl',
-        './results/Qwen2.5_Coder_1.5B_Instruct_Continuous/mceval_hard/iter_1/result_masked_15_2000.jsonl',
-        "Qwen2.5_Coder_1.5B_Instruct_Continuous 15 Epochs - Baseline VS Masked (2000 samples control dataset)"
+    run_comparison_models(
+        './results/Qwen2.5_Coder_1.5B_Instruct/mceval_hard/iter_1/result_baseline.jsonl',
+        './results/Qwen2.5_Coder_1.5B_Instruct_Continuous/mceval_hard/iter_1/result_baseline_15_no_lora.jsonl',
+        "Qwen2.5_Coder_1.5B_Instruct VS Qwen2.5_Coder_1.5B_Instruct_Continuous 15 Epochs WITHOUT LORA"
     )
-
-    run_comparison(
-        './results/Qwen2.5_Coder_1.5B_Instruct_Continuous/mceval_hard/iter_1/result_baseline_15.jsonl',
-        './results/Qwen2.5_Coder_1.5B_Instruct_Continuous/mceval_hard/iter_1/result_masked_15_10000.jsonl',
-        "Qwen2.5_Coder_1.5B_Instruct_Continuous 15 Epochs - Baseline VS Masked (10000 samples control dataset)"
+    run_comparison_masked(
+        './results/Qwen2.5_Coder_1.5B_Instruct_Continuous/mceval_hard/iter_1/result_baseline_15_no_lora.jsonl',
+        './results/Qwen2.5_Coder_1.5B_Instruct_Continuous/mceval_hard/iter_1/result_masked_no_lora_5000.jsonl',
+        "Qwen2.5_Coder_1.5B_Instruct_Continuous 15 Epochs - Baseline VS Masked (5000 samples control dataset) WITHOUT LORA"
+    )
+    run_comparison_masked(
+        './results/Qwen2.5_Coder_1.5B_Instruct_Continuous/mceval_hard/iter_1/result_baseline_15_no_lora.jsonl',
+        './results/Qwen2.5_Coder_1.5B_Instruct_Continuous/mceval_hard/iter_1/result_masked_no_lora_10000.jsonl',
+        "Qwen2.5_Coder_1.5B_Instruct_Continuous 15 Epochs - Baseline VS Masked (10000 samples control dataset) WITHOUT LORA"
     )

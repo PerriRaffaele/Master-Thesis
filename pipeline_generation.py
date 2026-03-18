@@ -30,7 +30,7 @@ def generate(messages: list[dict], model, tokenizer, max_new_tokens: int, temper
             **inputs,
             max_new_tokens=max_new_tokens,
             temperature=temperature,
-            do_sample=temperature > 0.0,
+            do_sample=temperature,
             pad_token_id=tokenizer.pad_token_id,
             eos_token_id=tokenizer.eos_token_id
         )
@@ -99,7 +99,7 @@ if __name__ == '__main__':
     
     # Model
     # model_id = "unsloth/Qwen2.5-Coder-1.5B-Instruct"
-    model_id = "./checkpoints_15/Qwen2.5-Coder-1.5B-Instruct-Continuous"
+    model_id = "./checkpoints_15_no_lora/Qwen2.5-Coder-1.5B-Instruct-Continuous"
     if model_id.startswith("./checkpoints"):
         tokenizer = AutoTokenizer.from_pretrained("unsloth/Qwen2.5-Coder-1.5B-Instruct")
     else:
@@ -108,7 +108,7 @@ if __name__ == '__main__':
         tokenizer.pad_token = tokenizer.eos_token
     model = AutoModelForCausalLM.from_pretrained(model_id, torch_dtype=torch.float16, device_map="auto")
 
-    neurons_file = f"./results/benchmark_specific/{model_id}/new_dataset/{benchmark_name}_jsonl_top_benchmark_neurons_10000.json"
+    neurons_file = f"./results/benchmark_specific/{model_id}/new_dataset/{benchmark_name}_jsonl_top_benchmark_neurons_5000.json"
     mask_neurons = True
     if os.path.exists(neurons_file) and mask_neurons:
         model = masking_neurons(model, neurons_file)
@@ -181,6 +181,6 @@ if __name__ == '__main__':
             row['passed'] = status
             row['tsed_score'] = tsed_score
             if mask_neurons:
-                export_jsonl(row, os.path.join(iteration_dir, f"result_masked_15_10000.jsonl"))
+                export_jsonl(row, os.path.join(iteration_dir, f"result_masked_no_lora_5000.jsonl"))
             else:
                 export_jsonl(row, os.path.join(iteration_dir, f"result_baseline_15.jsonl"))

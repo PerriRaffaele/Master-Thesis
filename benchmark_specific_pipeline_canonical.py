@@ -33,11 +33,11 @@ if __name__ == '__main__':
         control_dataset = build_control_dataset(benchmark_texts, num_samples=100000, benchmark_name=benchmark_name)
     
     # Get only 100000 samples for the control dataset to speed up the process
-    sample_size = 2000
+    sample_size = 5000
     control_dataset = random.sample(control_dataset, sample_size)
     # Model
     # model_id = "unsloth/Qwen2.5-Coder-14B-Instruct"
-    model_id = "./checkpoints_15/Qwen2.5-Coder-1.5B-Instruct-Continuous"
+    model_id = "./checkpoints_15_no_lora/Qwen2.5-Coder-1.5B-Instruct-Continuous"
     if model_id.startswith("./checkpoints"):
         tokenizer = AutoTokenizer.from_pretrained("unsloth/Qwen2.5-Coder-1.5B-Instruct")
     else:
