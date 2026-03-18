@@ -3,5 +3,5 @@ __pycache__
 *.jsonl
 *.venv
 .venv
-checkpoints/
+checkpoints*
 checkpoints_15/

@@ -7,10 +7,10 @@ python -u clm_no_lora.py \
     --model_name "$MODEL_NAME" \
     --training_data "$CODE_FILEPATH" \
     --output_dir "checkpoints_15_no_lora" \
-    --epochs 5 \
+    --epochs 15 \
     --batch_size 1 \
     --gradient_accumulation_steps 1 \
     --learning_rate 5e-05 \
     --lr_scheduler_type "linear" \
     --logging_steps 5 \
-    --seed 42 > ${TR_LOGS} 2>/dev/tty
+    --seed 42 \

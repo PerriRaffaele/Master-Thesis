@@ -138,7 +138,7 @@ if __name__ == '__main__':
     
     training_instances = list()
     training_code_df = pd.read_json(args.training_data, lines=True, orient="records", encoding="utf-8")
-    training_instances.extend(training_code_df["text"].tolist())
+    training_instances.extend(training_code_df["content"].tolist())
 
     dataset = Dataset.from_list([{"content": x} for x in training_instances])
     dataset = dataset.shuffle(seed=42)
