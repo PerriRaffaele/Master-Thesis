@@ -192,74 +192,93 @@ def run_comparison_models(baseline_path, other_path, description="MASKED"):
     print(f"  -------------------------")
     print(f"  Absolute Impact:  {tsed_diff:+.4f}\n")
 
+def run_comparison_more_models(models_dict: dict, description="MULTIPLE MODELS"):
+    print("=========================================================================")
+    print(f"MECHANISTIC INTERPRETABILITY: {description} REPORT")
+    print("=========================================================================\n")
+    
+    # 1. Gather all metrics
+    results = {}
+    for model_name, path in models_dict.items():
+        acc, tsed, total = calculate_metrics(path)
+        if total > 0:
+            results[model_name] = {'acc': acc, 'tsed': tsed, 'total': total}
+        else:
+            print(f"[!] Warning: No valid data found for '{model_name}' at {path}\n")
+
+    if len(results) < 2:
+        print("Not enough valid models to compare. Need at least 2.")
+        return
+
+    model_names = list(results.keys())
+
+    # 2. Print Absolute Metrics Table
+    print("--- 1. ABSOLUTE METRICS ---")
+    header_str = f"{'Model Name':<45} | {'Accuracy (%)':<15} | {'TSED Score':<15} | {'Samples'}"
+    print(header_str)
+    print("-" * len(header_str))
+    for name in model_names:
+        metrics = results[name]
+        print(f"{name:<45} | {metrics['acc']:>14.2f}% | {metrics['tsed']:>15.4f} | {metrics['total']}")
+    print("\n")
+
+    # 3. Print Accuracy Comparison Matrix
+    print("--- 2. ACCURACY IMPACT (Base vs Comparison) ---")
+    print("How to read: (Column Model Accuracy) - (Row Model Accuracy)")
+    
+    col_headers = " | ".join([f"{name[:15]:>15}" for name in model_names]) # Truncate to 15 chars for neatness
+    header_str = f"{'Base Model (Row) \\ Compare (Col)':<35} | " + col_headers
+    print(header_str)
+    print("-" * len(header_str))
+    
+    for row_name in model_names:
+        row_str = f"{row_name[:35]:<35} | "
+        for col_name in model_names:
+            if row_name == col_name:
+                row_str += f"{'-':>15} | "
+            else:
+                acc_diff = results[col_name]['acc'] - results[row_name]['acc']
+                row_str += f"{acc_diff:>+14.2f}% | "
+        print(row_str)
+    print("\n")
+
+    # 4. Print TSED Comparison Matrix
+    print("--- 3. TSED SIMILARITY IMPACT (Base vs Comparison) ---")
+    print("How to read: (Column Model TSED) - (Row Model TSED)")
+    
+    header_str = f"{'Base Model (Row) \\ Compare (Col)':<35} | " + col_headers
+    print(header_str)
+    print("-" * len(header_str))
+    
+    for row_name in model_names:
+        row_str = f"{row_name[:35]:<35} | "
+        for col_name in model_names:
+            if row_name == col_name:
+                row_str += f"{'-':>15} | "
+            else:
+                tsed_diff = results[col_name]['tsed'] - results[row_name]['tsed']
+                row_str += f"{tsed_diff:>+15.4f} | "
+        print(row_str)
+    print("\n")
+
+
 if __name__ == '__main__':
     print("\n[ RUNNING COMPARISONS ]")
-    compare_neuron_jsons(
-        './results/benchmark_specific/checkpoints_15_no_lora/Qwen2.5-Coder-1.5B-Instruct-Continuous/new_dataset/mceval_hard_jsonl_top_benchmark_neurons_5000.json', 
-        './results/benchmark_specific/checkpoints_15_no_lora/Qwen2.5-Coder-1.5B-Instruct-Continuous/new_dataset/mceval_hard_jsonl_top_benchmark_neurons_10000.json',
-        "MCEval - Top Benchmark Neurons (5000 samples vs 10000 samples) - Qwen2.5-Coder-14B-Instruct"
-        )
-    # compare_neuron_jsons(
-    #     './results/benchmark_specific/unsloth/Qwen2.5-Coder-14B-Instruct/new_dataset/humaneval_plus_jsonl_top_benchmark_neurons_100000.json', 
-    #     './results/benchmark_specific/unsloth/Qwen2.5-Coder-14B-Instruct/new_dataset/humaneval_plus_jsonl_top_benchmark_neurons_10000.json',
-    #     "Humaneval Plus - Top Benchmark Neurons (100000 samples vs 10000 samples) - Qwen2.5-Coder-14B-Instruct"
-    #     )
-    # analyze_neuron_activation(
-    #     './results/benchmark_specific/unsloth/Qwen2.5-Coder-14B-Instruct/new_dataset/humaneval_plus_jsonl_top_benchmark_neurons_100000.json',
-    #     total_neurons_per_layer=13824,
-    #     num_layers=48,
-    #     model="Qwen2.5-Coder-14B-Instruct",
-    #     dataset="Humaneval Plus",
-    #     specific="Top Benchmark Neurons (100k samples)"
+    
+    paths = {
+        "Baseline - PL only": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous/mceval_hard/iter_1/result_baseline_pl_only.jsonl",
+        "Baseline - ALL training": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous/mceval_hard/iter_1/result_baseline_15_no_lora.jsonl",
+        # "Masked - TH: 0.6": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous/mceval_hard/iter_1/result_masked_no_lora_10000_0.6.jsonl",
+        # "Masked - TH: 0.65": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous/mceval_hard/iter_1/result_masked_no_lora_10000_0.65.jsonl",
+        # "Masked - TH: 0.7": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous/mceval_hard/iter_1/result_masked_no_lora_10000_0.7.jsonl",
+        # "Masked - TH: 0.75": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous/mceval_hard/iter_1/result_masked_no_lora_10000_0.75.jsonl",
+        "Masked - TH: 0.8": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous/mceval_hard/iter_1/result_masked_no_lora_10000_0.8.jsonl",
+        "Masked - TH: 0.85": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous/mceval_hard/iter_1/result_masked_no_lora_10000_0.85.jsonl",
+        "Masked - TH: 0.9": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous/mceval_hard/iter_1/result_masked_no_lora_10000_0.9.jsonl",
+    }
+    # run_comparison_masked(
+    #     "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous/mceval_hard/iter_1/result_baseline_15_no_lora.jsonl",
+    #     "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous/mceval_hard/iter_1/result_masked_no_lora_10000_0.9.jsonl",
+    #     "Masked (TH: 0.9) vs Baseline (ALL training)"
     # )
-    # analyze_neuron_activation(
-    #     './results/benchmark_specific/unsloth/Qwen2.5-Coder-14B-Instruct/new_dataset/humaneval_plus_jsonl_top_benchmark_neurons_10000.json',
-    #     total_neurons_per_layer=13824,
-    #     num_layers=48,
-    #     model="Qwen2.5-Coder-14B-Instruct",
-    #     dataset="Humaneval Plus",
-    #     specific="Top Benchmark Neurons (100k samples)"
-    # )
-    # analyze_neuron_activation(
-    #     './results/benchmark_specific/checkpoints_15/Qwen2.5-Coder-1.5B-Instruct-Continuous/new_dataset/humaneval_plus_jsonl_top_benchmark_neurons_2000.json',
-    #     total_neurons_per_layer=4096,
-    #     num_layers=28,
-    #     model="Qwen2.5-Coder-1.5B-Instruct",
-    #     dataset="Humaneval Plus",
-    #     specific="Top Benchmark Neurons (2000 samples)"
-    # )
-
-    # run_comparison(
-    #     './results/Qwen2.5_Coder_1.5B_Instruct/humaneval_plus/iter_1/result_baseline.jsonl',
-    #     './results/Qwen2.5_Coder_1.5B_Instruct/humaneval_plus/iter_1/result_masked.jsonl'
-    # )
-    run_comparison_models(
-        './results/Qwen2.5_Coder_1.5B_Instruct/mceval_hard/iter_1/result_baseline.jsonl',
-        './results/Qwen2.5_Coder_1.5B_Instruct_Continuous/mceval_hard/iter_1/result_baseline_5.jsonl',
-        "Qwen2.5_Coder_1.5B_Instruct VS Qwen2.5_Coder_1.5B_Instruct_Continuous 5 Epochs WITH LORA"
-    )
-    run_comparison_models(
-        './results/Qwen2.5_Coder_1.5B_Instruct/mceval_hard/iter_1/result_baseline.jsonl',
-        './results/Qwen2.5_Coder_1.5B_Instruct_Continuous/mceval_hard/iter_1/result_baseline_15.jsonl',
-        "Qwen2.5_Coder_1.5B_Instruct VS Qwen2.5_Coder_1.5B_Instruct_Continuous 15 Epochs WITH LORA"
-    )
-    run_comparison_models(
-        './results/Qwen2.5_Coder_1.5B_Instruct/mceval_hard/iter_1/result_baseline.jsonl',
-        './results/Qwen2.5_Coder_1.5B_Instruct_Continuous/mceval_hard/iter_1/result_baseline_15_no_lora.jsonl',
-        "Qwen2.5_Coder_1.5B_Instruct VS Qwen2.5_Coder_1.5B_Instruct_Continuous 15 Epochs WITHOUT LORA"
-    )
-    run_comparison_masked(
-        './results/Qwen2.5_Coder_1.5B_Instruct_Continuous/mceval_hard/iter_1/result_baseline_15_no_lora.jsonl',
-        './results/Qwen2.5_Coder_1.5B_Instruct_Continuous/mceval_hard/iter_1/result_masked_no_lora_5000.jsonl',
-        "Qwen2.5_Coder_1.5B_Instruct_Continuous 15 Epochs - Baseline VS Masked (5000 samples control dataset) WITHOUT LORA"
-    )
-    run_comparison_masked(
-        './results/Qwen2.5_Coder_1.5B_Instruct_Continuous/mceval_hard/iter_1/result_baseline_15_no_lora.jsonl',
-        './results/Qwen2.5_Coder_1.5B_Instruct_Continuous/mceval_hard/iter_1/result_masked_no_lora_10000.jsonl',
-        "Qwen2.5_Coder_1.5B_Instruct_Continuous 15 Epochs - Baseline VS Masked (10000 samples control dataset) WITHOUT LORA"
-    )
-    run_comparison_models(
-        './results/Qwen2.5_Coder_1.5B_Instruct_Continuous/mceval_hard/iter_1/result_baseline_15_no_lora.jsonl',
-        './results/Qwen2.5_Coder_1.5B_Instruct_Continuous/mceval_hard/iter_1/result_baseline_pl_only.jsonl',
-        "Qwen2.5_Coder_1.5B_Instruct_Continuous 15 Epochs - Baseline WITHOUT LORA (benchmark+pl) VS Baseline PL-ONLY WITHOUT LORA"
-    )
+    run_comparison_more_models(paths, description="ALL MASKED VARIANTS vs BASELINES")

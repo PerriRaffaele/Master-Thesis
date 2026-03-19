@@ -33,7 +33,8 @@ if __name__ == '__main__':
         control_dataset = build_control_dataset(benchmark_texts, num_samples=100000, benchmark_name=benchmark_name)
     
     # Get only 100000 samples for the control dataset to speed up the process
-    sample_size = 5000
+    sample_size = 10000
+    random.seed(42)
     control_dataset = random.sample(control_dataset, sample_size)
     # Model
     # model_id = "unsloth/Qwen2.5-Coder-14B-Instruct"
@@ -75,11 +76,12 @@ if __name__ == '__main__':
         h.remove()
     
     # 5. Calculate AP and Extract Top Neurons
+    threshold = 0.90
     ap_scores_per_layer = compute_expertise(target_acts, control_acts)
-    top_benchmark_neurons = limit_expertise(ap_scores_per_layer, threshold=0.90)
+    top_benchmark_neurons = limit_expertise(ap_scores_per_layer, threshold=threshold)
     
     # 6. Save Results
-    output_file = f"./results/benchmark_specific/{model_id}/new_dataset/{benchmark_name}_jsonl_top_benchmark_neurons_{sample_size}.json"
+    output_file = f"./results/benchmark_specific/{model_id}/new_dataset/{benchmark_name}_jsonl_top_benchmark_neurons_{sample_size}_{threshold}.json"
     os.makedirs(os.path.dirname(output_file), exist_ok=True)
     with open(output_file, "w") as f:
         json.dump(top_benchmark_neurons, f, indent=4)

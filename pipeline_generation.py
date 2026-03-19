@@ -67,20 +67,39 @@ def masking_neurons(model, neurons_json_path):
     # For down_proj, 'in_features' is the individual neuron inside the MLP.
     # By zeroing out a specific column, that neuron can no longer output any data.
     with torch.no_grad():
-        for layer_name, neuron_indices in neurons_dict.items():
-            if not neuron_indices:
+        for layer_name, neuron_entries in neurons_dict.items():
+            if not neuron_entries:
                 continue
-                
-            # Extract the integer layer number from "layer_0", "layer_1", etc.
             layer_idx = int(layer_name.split("_")[1])
             
-            # Perform the surgery: Zero out the connections FROM those neurons TO the output
-            model.model.layers[layer_idx].mlp.down_proj.weight.data[:, neuron_indices] = 0.0
+            # FIX: extract just the integer indices from (idx, ap_score) tuples
+            neuron_indices = [entry[0] for entry in neuron_entries]
             
+            model.model.layers[layer_idx].mlp.down_proj.weight.data[:, neuron_indices] = 0.0
             total_masked += len(neuron_indices)
             
     print(f"[+] Successfully masked {total_masked} benchmark-specific neurons!\n")
     return model
+
+def verify_masking(model, neurons_json_path):
+    with open(neurons_json_path) as f:
+        neurons_dict = json.load(f)
+    
+    with torch.no_grad():
+        for layer_name, neuron_entries in neurons_dict.items():
+            if not neuron_entries:
+                continue
+            layer_idx = int(layer_name.split("_")[1])
+            neuron_indices = [entry[0] for entry in neuron_entries]
+            
+            col_norms = model.model.layers[layer_idx].mlp.down_proj.weight.data[:, neuron_indices].norm(dim=0)
+            non_zero = (col_norms > 1e-6).sum().item()
+            
+            if non_zero > 0:
+                print(f"[FAIL] {layer_name}: {non_zero}/{len(neuron_indices)} neurons NOT zeroed")
+            else:
+                print(f"[OK] {layer_name}: all {len(neuron_indices)} neurons zeroed")
+
 
 if __name__ == '__main__':
     # Benchmark and Dataset
@@ -99,88 +118,93 @@ if __name__ == '__main__':
     
     # Model
     # model_id = "unsloth/Qwen2.5-Coder-1.5B-Instruct"
-    model_id = "./checkpoints_15_no_lora_pl_only/Qwen2.5-Coder-1.5B-Instruct-Continuous"
+    model_id = "./checkpoints_15_no_lora/Qwen2.5-Coder-1.5B-Instruct-Continuous"
     if model_id.startswith("./checkpoints"):
         tokenizer = AutoTokenizer.from_pretrained("unsloth/Qwen2.5-Coder-1.5B-Instruct")
     else:
         tokenizer = AutoTokenizer.from_pretrained(model_id)
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
-    model = AutoModelForCausalLM.from_pretrained(model_id, torch_dtype=torch.float16, device_map="auto")
+    thresholds = [0.90, 0.85, 0.80, 0.75, 0.70, 0.65, 0.60]
+    
+    for threshold in thresholds:
+        print(f"\n\n==================== Running Pipeline with Threshold {threshold} ====================\n\n")
+        model = AutoModelForCausalLM.from_pretrained(model_id, torch_dtype=torch.float16, device_map="auto")
 
-    neurons_file = f"./results/benchmark_specific/{model_id}/new_dataset/{benchmark_name}_jsonl_top_benchmark_neurons_5000.json"
-    mask_neurons = False
-    if os.path.exists(neurons_file) and mask_neurons:
-        model = masking_neurons(model, neurons_file)
-    else:
-        print(f"Warning: Could not find {neurons_file}. Running baseline evaluation without masking.")
+        neurons_file = f"./results/benchmark_specific/{model_id.split('./')[1]}/new_dataset/{benchmark_name}_jsonl_top_benchmark_neurons_10000_{threshold}.json"
+        mask_neurons = True
+        if os.path.exists(neurons_file) and mask_neurons:
+            model = masking_neurons(model, neurons_file)
+            verify_masking(model, neurons_file)
+        else:
+            print(f"Warning: Could not find {neurons_file}. Running baseline evaluation without masking.")
 
-    output_dir = './results/'
-    os.makedirs(output_dir, exist_ok=True)
+        output_dir = './results/'
+        os.makedirs(output_dir, exist_ok=True)
 
-    print(f"===== Arguments =====")
-    print(f"Model: {model}")
-    print(f"Benchmark: {benchmark_name}")
-    print(f"Max tokens: {max_tokens}")
-    print(f"Temperature: {temperature}")
-    print(f"Output dir: {output_dir}")
-    print(f"======================")
+        print(f"===== Arguments =====")
+        print(f"Model: {model}")
+        print(f"Benchmark: {benchmark_name}")
+        print(f"Max tokens: {max_tokens}")
+        print(f"Temperature: {temperature}")
+        print(f"Output dir: {output_dir}")
+        print(f"======================")
 
-    passed, num_instances = 0, len(benchmark_df)
-    #     # System prompt adapted from Reflexion (https://github.com/noahshinn/reflexion)
-    system_prompt = f"""You are an AI that only responds with Python code, NOT ENGLISH. You will be given a function signature and its docstring by the user. Write your full implementation. You always return the signature and anything that came before it in the input prompt (such as the docstring, libraries, imports, and so on) along with the full implementation of the function. Write the output in a markdown code block. For example:\n```\n<your code here>\n```"""
+        passed, num_instances = 0, len(benchmark_df)
+        #     # System prompt adapted from Reflexion (https://github.com/noahshinn/reflexion)
+        system_prompt = f"""You are an AI that only responds with Python code, NOT ENGLISH. You will be given a function signature and its docstring by the user. Write your full implementation. You always return the signature and anything that came before it in the input prompt (such as the docstring, libraries, imports, and so on) along with the full implementation of the function. Write the output in a markdown code block. For example:\n```\n<your code here>\n```"""
 
-    completion_kwargs = {
-        "model": model,
-        "max_tokens": max_tokens,
-        "temperature": temperature,
-        "api_base": 'http://localhost:8000/v1',
-    }
+        completion_kwargs = {
+            "model": model,
+            "max_tokens": max_tokens,
+            "temperature": temperature,
+            "api_base": 'http://localhost:8000/v1',
+        }
 
-    for i in range(iterations):
-        passed = 0
-        print(f"Running iteration {i + 1}/{iterations}...")
+        for i in range(iterations):
+            passed = 0
+            print(f"Running iteration {i + 1}/{iterations}...")
 
-        model_name_extracted = model_id.split("/")[-1].replace("-", "_")
-        iteration_dir = os.path.join(output_dir, model_name_extracted, benchmark_name, f"iter_{i + 1}")
-        os.makedirs(iteration_dir, exist_ok=True)
+            model_name_extracted = model_id.split("/")[-1].replace("-", "_")
+            iteration_dir = os.path.join(output_dir, model_name_extracted, benchmark_name, f"iter_{i + 1}")
+            os.makedirs(iteration_dir, exist_ok=True)
 
-        for idx, row in benchmark_df.iterrows():
-            benchmark.row = row
+            for idx, row in benchmark_df.iterrows():
+                benchmark.row = row
 
-            messages = [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": benchmark.prompt()}
-            ]
+                messages = [
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": benchmark.prompt()}
+                ]
 
-            solution = generate(
-                messages=messages,
-                model=model,
-                tokenizer=tokenizer,
-                max_new_tokens=max_tokens,
-                temperature=temperature
-            )
+                solution = generate(
+                    messages=messages,
+                    model=model,
+                    tokenizer=tokenizer,
+                    max_new_tokens=max_tokens,
+                    temperature=temperature
+                )
 
-            status, output = benchmark.run_tests(solution)
+                status, output = benchmark.run_tests(solution)
 
-            if status == True: passed += 1
-            print(
-                f"\n\n## Prompt {idx + 1}/{num_instances} - Current accuracy: {(passed / (idx + 1)) * 100:.2f}% ({passed}/{idx + 1})\n\n")
-            
-            if benchmark_name == "humaneval_plus" or benchmark_name == "mceval_hard":
-                canonical_full = row['prompt'] + row['canonical_solution']
-            else:
-                canonical_full = row["code"]
+                if status == True: passed += 1
+                print(
+                    f"\n\n## Prompt {idx + 1}/{num_instances} - Current accuracy: {(passed / (idx + 1)) * 100:.2f}% ({passed}/{idx + 1})\n\n")
+                
+                if benchmark_name == "humaneval_plus" or benchmark_name == "mceval_hard":
+                    canonical_full = row['prompt'] + row['canonical_solution']
+                else:
+                    canonical_full = row["code"]
 
-            tsed_score = Calculate("python", solution, canonical_full, 1.0, 0.8, 1.0)
+                tsed_score = Calculate("python", solution, canonical_full, 1.0, 0.8, 1.0)
 
-            row['evaluated_prompt'] = benchmark.prompt()
-            row['evaluated_tests'] = benchmark.tests()
-            row['completion'] = solution
-            row['test_output'] = output
-            row['passed'] = status
-            row['tsed_score'] = tsed_score
-            if mask_neurons:
-                export_jsonl(row, os.path.join(iteration_dir, f"result_masked_no_lora_5000.jsonl"))
-            else:
-                export_jsonl(row, os.path.join(iteration_dir, f"result_baseline_pl_only.jsonl"))
+                row['evaluated_prompt'] = benchmark.prompt()
+                row['evaluated_tests'] = benchmark.tests()
+                row['completion'] = solution
+                row['test_output'] = output
+                row['passed'] = status
+                row['tsed_score'] = tsed_score
+                if mask_neurons:
+                    export_jsonl(row, os.path.join(iteration_dir, f"result_masked_no_lora_10000_{threshold}.jsonl"))
+                else:
+                    export_jsonl(row, os.path.join(iteration_dir, f"result_baseline.jsonl"))
