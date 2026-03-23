@@ -80,7 +80,7 @@ if __name__ == '__main__':
     threshold = 0.65
     ap_scores_per_layer = compute_expertise(target_acts, control_acts)
     # This will print the stats, save the graph, and return the exact Z=3 mathematical threshold
-    derived_threshold = analyze_and_plot_distribution(ap_scores_per_layer, output_dir=output_dir)
+    derived_threshold = analyze_and_plot_distribution(ap_scores_per_layer, output_dir=output_dir, z_threshold=4)
     top_benchmark_neurons = limit_expertise(ap_scores_per_layer, threshold=derived_threshold)
     
     # 6. Save Results

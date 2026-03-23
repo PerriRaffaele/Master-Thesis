@@ -274,7 +274,7 @@ def count_detected_neurons(filepath: str):
     total_count = sum(len(neurons) for neurons in data.values())
     return total_count
 
-def analyze_and_plot_distribution(ap_scores_per_layer, output_dir="./results/"):
+def analyze_and_plot_distribution(ap_scores_per_layer, output_dir="./results/", z_threshold=3):
     print("\n======================================================")
     print("NEURON EXPERTISE STATISTICAL ANALYSIS")
     print("======================================================")
@@ -309,8 +309,8 @@ def analyze_and_plot_distribution(ap_scores_per_layer, output_dir="./results/"):
     
     # Draw vertical lines for the Mean and the Z=3 outlier threshold
     plt.axvline(mu, color='red', linestyle='dashed', linewidth=2, label=f'Mean (μ = {mu:.4f})')
-    z3_thresh = mu + (3 * sigma)
-    plt.axvline(z3_thresh, color='orange', linestyle='dashed', linewidth=2, label=f'Z=3 (Threshold = {z3_thresh:.4f})')
+    z3_thresh = mu + (z_threshold * sigma)
+    plt.axvline(z3_thresh, color='orange', linestyle='dashed', linewidth=2, label=f'Z={z_threshold} (Threshold = {z3_thresh:.4f})')
     
     plt.title("Distribution of Neuron Expertise Scores (Log Scale)")
     plt.xlabel("Expertise Score (AP)")
@@ -319,7 +319,7 @@ def analyze_and_plot_distribution(ap_scores_per_layer, output_dir="./results/"):
     
     # Save the plot to disk
     os.makedirs(output_dir, exist_ok=True)
-    plot_path = os.path.join(output_dir, "expertise_histogram.png")
+    plot_path = os.path.join(output_dir, f"expertise_histogram_z={z_threshold}.png")
     plt.savefig(plot_path, dpi=300, bbox_inches='tight')
     plt.close()
     
@@ -342,6 +342,8 @@ if __name__ == '__main__':
         "Masked - TH: 0.8": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous/mceval_hard/iter_1/result_masked_no_lora_10000_0.8.jsonl",
         "Masked - TH: 0.85": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous/mceval_hard/iter_1/result_masked_no_lora_10000_0.85.jsonl",
         "Masked - TH: 0.9": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous/mceval_hard/iter_1/result_masked_no_lora_10000_0.9.jsonl",
+        "Masked - TH: 0.13851979213253252": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous/mceval_hard/iter_1/result_masked_no_lora_10000_0.13851979213253252.jsonl",
+        "Masked - TH: 0.17340149236254926": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous/mceval_hard/iter_1/result_masked_no_lora_10000_0.17340149236254926.jsonl",
     }
     # run_comparison_masked(
     #     "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous/mceval_hard/iter_1/result_baseline_15_no_lora.jsonl",
@@ -350,13 +352,7 @@ if __name__ == '__main__':
     # )
     run_comparison_more_models(paths, description="ALL MASKED VARIANTS vs BASELINES")
 
-    compare_neuron_jsons(
-        "./results/benchmark_specific/checkpoints_15_no_lora/Qwen2.5-Coder-1.5B-Instruct-Continuous/new_dataset/mceval_hard_jsonl_top_benchmark_neurons_10000_0.65_old.json",
-        "./results/benchmark_specific/checkpoints_15_no_lora/Qwen2.5-Coder-1.5B-Instruct-Continuous/new_dataset/mceval_hard_jsonl_top_benchmark_neurons_10000_0.65.json",
-        description="Comparing Top Neurons after adding tokenizer.padding_side = 'left' in compute_responses()"
-    )
-
-    for threshold in [0.90, 0.85, 0.80, 0.75, 0.70, 0.65, 0.60]:
+    for threshold in [0.90, 0.85, 0.80, 0.75, 0.70, 0.65, 0.60, 0.13851979213253252, 0.17340149236254926]:
         print(
             f"\n[+] Total neurons detected for TH={threshold}: ",
             count_detected_neurons(
