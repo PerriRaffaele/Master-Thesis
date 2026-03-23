@@ -261,6 +261,16 @@ def run_comparison_more_models(models_dict: dict, description="MULTIPLE MODELS")
         print(row_str)
     print("\n")
 
+def count_detected_neurons(filepath: str):
+    if not os.path.exists(filepath):
+        print(f"File not found: {filepath}")
+        return 0
+        
+    with open(filepath, 'r') as f:
+        data = json.load(f)
+        
+    total_count = sum(len(neurons) for neurons in data.values())
+    return total_count
 
 if __name__ == '__main__':
     print("\n[ RUNNING COMPARISONS ]")
@@ -268,10 +278,10 @@ if __name__ == '__main__':
     paths = {
         "Baseline - PL only": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous/mceval_hard/iter_1/result_baseline_pl_only.jsonl",
         "Baseline - ALL training": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous/mceval_hard/iter_1/result_baseline_15_no_lora.jsonl",
-        # "Masked - TH: 0.6": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous/mceval_hard/iter_1/result_masked_no_lora_10000_0.6.jsonl",
-        # "Masked - TH: 0.65": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous/mceval_hard/iter_1/result_masked_no_lora_10000_0.65.jsonl",
-        # "Masked - TH: 0.7": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous/mceval_hard/iter_1/result_masked_no_lora_10000_0.7.jsonl",
-        # "Masked - TH: 0.75": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous/mceval_hard/iter_1/result_masked_no_lora_10000_0.75.jsonl",
+        "Masked - TH: 0.6": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous/mceval_hard/iter_1/result_masked_no_lora_10000_0.6.jsonl",
+        "Masked - TH: 0.65": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous/mceval_hard/iter_1/result_masked_no_lora_10000_0.65.jsonl",
+        "Masked - TH: 0.7": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous/mceval_hard/iter_1/result_masked_no_lora_10000_0.7.jsonl",
+        "Masked - TH: 0.75": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous/mceval_hard/iter_1/result_masked_no_lora_10000_0.75.jsonl",
         "Masked - TH: 0.8": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous/mceval_hard/iter_1/result_masked_no_lora_10000_0.8.jsonl",
         "Masked - TH: 0.85": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous/mceval_hard/iter_1/result_masked_no_lora_10000_0.85.jsonl",
         "Masked - TH: 0.9": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous/mceval_hard/iter_1/result_masked_no_lora_10000_0.9.jsonl",
@@ -282,3 +292,17 @@ if __name__ == '__main__':
     #     "Masked (TH: 0.9) vs Baseline (ALL training)"
     # )
     run_comparison_more_models(paths, description="ALL MASKED VARIANTS vs BASELINES")
+
+    compare_neuron_jsons(
+        "./results/benchmark_specific/checkpoints_15_no_lora/Qwen2.5-Coder-1.5B-Instruct-Continuous/new_dataset/mceval_hard_jsonl_top_benchmark_neurons_10000_0.65_old.json",
+        "./results/benchmark_specific/checkpoints_15_no_lora/Qwen2.5-Coder-1.5B-Instruct-Continuous/new_dataset/mceval_hard_jsonl_top_benchmark_neurons_10000_0.65.json",
+        description="Comparing Top Neurons after adding tokenizer.padding_side = 'left' in compute_responses()"
+    )
+
+    for threshold in [0.90, 0.85, 0.80, 0.75, 0.70, 0.65, 0.60]:
+        print(
+            f"\n[+] Total neurons detected for TH={threshold}: ",
+            count_detected_neurons(
+            f"./results/benchmark_specific/checkpoints_15_no_lora/Qwen2.5-Coder-1.5B-Instruct-Continuous/new_dataset/mceval_hard_jsonl_top_benchmark_neurons_10000_{threshold}.json"
+            )
+        )
