@@ -5,3 +5,4 @@ __pycache__
 .venv
 checkpoints*
 checkpoints_15/
+*.png

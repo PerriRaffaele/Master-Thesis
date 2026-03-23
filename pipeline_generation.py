@@ -126,6 +126,7 @@ if __name__ == '__main__':
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
     thresholds = [0.90, 0.85, 0.80, 0.75, 0.70, 0.65, 0.60]
+    thresholds = [0.13851979213253252]
     
     for threshold in thresholds:
         print(f"\n\n==================== Running Pipeline with Threshold {threshold} ====================\n\n")

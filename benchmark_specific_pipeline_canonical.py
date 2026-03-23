@@ -9,6 +9,7 @@ from collections import defaultdict
 from neuron_specific.benchmark_specific.control_dataset import build_control_dataset, get_target_dataset_jsonl, decontaminate_background
 import random
 from tqdm import tqdm
+from analytics import analyze_and_plot_distribution
 
 # Global dictionary to store activations during the forward pass
 activations_dict = defaultdict(list)
@@ -76,12 +77,14 @@ if __name__ == '__main__':
         h.remove()
     
     # 5. Calculate AP and Extract Top Neurons
-    threshold = 0.90
+    threshold = 0.65
     ap_scores_per_layer = compute_expertise(target_acts, control_acts)
-    top_benchmark_neurons = limit_expertise(ap_scores_per_layer, threshold=threshold)
+    # This will print the stats, save the graph, and return the exact Z=3 mathematical threshold
+    derived_threshold = analyze_and_plot_distribution(ap_scores_per_layer, output_dir=output_dir)
+    top_benchmark_neurons = limit_expertise(ap_scores_per_layer, threshold=derived_threshold)
     
     # 6. Save Results
-    output_file = f"./results/benchmark_specific/{model_id}/new_dataset/{benchmark_name}_jsonl_top_benchmark_neurons_{sample_size}_{threshold}.json"
+    output_file = f"./results/benchmark_specific/{model_id}/new_dataset/{benchmark_name}_jsonl_top_benchmark_neurons_{sample_size}_{derived_threshold}.json"
     os.makedirs(os.path.dirname(output_file), exist_ok=True)
     with open(output_file, "w") as f:
         json.dump(top_benchmark_neurons, f, indent=4)

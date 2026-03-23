@@ -1,5 +1,7 @@
 import json
 import os
+import numpy as np
+import matplotlib.pyplot as plt
 
 def compare_neuron_jsons(file_1: str, file_2: str, description: str):
     with open(file_1, 'r') as f1, open(file_2, 'r') as f2:
@@ -271,6 +273,61 @@ def count_detected_neurons(filepath: str):
         
     total_count = sum(len(neurons) for neurons in data.values())
     return total_count
+
+def analyze_and_plot_distribution(ap_scores_per_layer, output_dir="./results/"):
+    print("\n======================================================")
+    print("NEURON EXPERTISE STATISTICAL ANALYSIS")
+    print("======================================================")
+    
+    # 1. Flatten all 250,880 scores into a single 1D array
+    all_scores = np.concatenate([np.array(scores) for layer, scores in ap_scores_per_layer.items()])
+    
+    # 2. Calculate the global Mean and Standard Deviation
+    mu = np.mean(all_scores)
+    sigma = np.std(all_scores)
+    
+    print(f"Total Neurons Analyzed: {len(all_scores)}")
+    print(f"Global Mean (μ): {mu:.6f}")
+    print(f"Standard Deviation (σ): {sigma:.6f}\n")
+    
+    # 3. Calculate how many neurons fall into strict Z-score outlier buckets
+    print("--- Mathematically Derived Thresholds ---")
+    z_scores_to_check = [2, 3, 4, 5]
+    
+    for z in z_scores_to_check:
+        threshold = mu + (z * sigma)
+        num_outliers = np.sum(all_scores > threshold)
+        percentage = (num_outliers / len(all_scores)) * 100
+        print(f"Z-Score >= {z} | Threshold = {threshold:.4f} | Masked Neurons: {num_outliers} ({percentage:.2f}%)")
+        
+    # 4. Generate the Histogram (Using Log Scale for the Y-axis)
+    plt.figure(figsize=(12, 7))
+    
+    # We use a log scale because neural expertise follows a heavy-tailed distribution.
+    # Most neurons will cluster near 0, and a tiny few will stretch far to the right.
+    plt.hist(all_scores, bins=100, log=True, color='#4A90E2', edgecolor='black', alpha=0.7)
+    
+    # Draw vertical lines for the Mean and the Z=3 outlier threshold
+    plt.axvline(mu, color='red', linestyle='dashed', linewidth=2, label=f'Mean (μ = {mu:.4f})')
+    z3_thresh = mu + (3 * sigma)
+    plt.axvline(z3_thresh, color='orange', linestyle='dashed', linewidth=2, label=f'Z=3 (Threshold = {z3_thresh:.4f})')
+    
+    plt.title("Distribution of Neuron Expertise Scores (Log Scale)")
+    plt.xlabel("Expertise Score (AP)")
+    plt.ylabel("Number of Neurons (Log Scale)")
+    plt.legend()
+    
+    # Save the plot to disk
+    os.makedirs(output_dir, exist_ok=True)
+    plot_path = os.path.join(output_dir, "expertise_histogram.png")
+    plt.savefig(plot_path, dpi=300, bbox_inches='tight')
+    plt.close()
+    
+    print(f"\n[+] Histogram saved successfully to: {plot_path}")
+    print("======================================================\n")
+    
+    # Return the Z=3 threshold as a scientifically sound default
+    return z3_thresh
 
 if __name__ == '__main__':
     print("\n[ RUNNING COMPARISONS ]")
