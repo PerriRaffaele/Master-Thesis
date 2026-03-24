@@ -108,7 +108,7 @@ if __name__ == '__main__':
         2: "mbpp_plus",
         3: "mceval_hard"
     }
-    chosen_benchmark = 3
+    chosen_benchmark = 1
     benchmark_name = benchmark_names[chosen_benchmark]
     max_tokens = 1024
     temperature = 0.0
@@ -126,13 +126,15 @@ if __name__ == '__main__':
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
 
-    thresholds = [0.2431648928225828, 0.27804659305259954, 0.3129282932826163, 0.34780999351263303, 0.3826916937426498]
+    # thresholds = [0.208283192592566, 0.13851979213253252, 0.17340149236254926, 0.2431648928225828, 0.27804659305259954, 0.3129282932826163, 0.34780999351263303, 0.3826916937426498]  # All to be done for mbpp_plus
+    thresholds = [0.208283192592566, 0.3129282932826163, 0.34780999351263303, 0.3826916937426498]   # Still to be done for humaneval_plus
     
     for threshold in thresholds:
         print(f"\n\n==================== Running Pipeline with Threshold {threshold} ====================\n\n")
         model = AutoModelForCausalLM.from_pretrained(model_id, torch_dtype=torch.float16, device_map="auto")
 
-        neurons_file = f"./results/benchmark_specific/{model_id.split('./')[1]}/new_dataset/{benchmark_name}_jsonl_top_benchmark_neurons_10000_{threshold}.json"
+        # neurons_file = f"./results/benchmark_specific/{model_id.split('./')[1]}/new_dataset/{benchmark_name}_jsonl_top_benchmark_neurons_10000_{threshold}.json"
+        neurons_file = f"./results/benchmark_specific/{model_id.split('./')[1]}/new_dataset/mceval_hard_jsonl_top_benchmark_neurons_10000_{threshold}.json"
         mask_neurons = True
         if os.path.exists(neurons_file) and mask_neurons:
             model = masking_neurons(model, neurons_file)
