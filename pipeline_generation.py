@@ -125,8 +125,8 @@ if __name__ == '__main__':
         tokenizer = AutoTokenizer.from_pretrained(model_id)
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
-    thresholds = [0.90, 0.85, 0.80, 0.75, 0.70, 0.65, 0.60]
-    thresholds = [0.208283192592566]
+
+    thresholds = [0.2431648928225828, 0.27804659305259954, 0.3129282932826163, 0.34780999351263303, 0.3826916937426498]
     
     for threshold in thresholds:
         print(f"\n\n==================== Running Pipeline with Threshold {threshold} ====================\n\n")

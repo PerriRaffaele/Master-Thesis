@@ -37,7 +37,7 @@ if __name__ == '__main__':
     sample_size = 10000
     random.seed(42)
     control_dataset = random.sample(control_dataset, sample_size)
-    z_thresholds = [7, 8, 9, 10, 11, 12, 13, 14, 15]
+    z_thresholds = [7, 8, 9, 10]
     # Model
     # model_id = "unsloth/Qwen2.5-Coder-14B-Instruct"
     for z_threshold in z_thresholds:
@@ -82,7 +82,7 @@ if __name__ == '__main__':
         # threshold = 0.65
         ap_scores_per_layer = compute_expertise(target_acts, control_acts)
         # This will print the stats, save the graph, and return the exact Z=3 mathematical threshold
-        derived_threshold = analyze_and_plot_distribution(ap_scores_per_layer, output_dir=output_dir, z_threshold=6)
+        derived_threshold = analyze_and_plot_distribution(ap_scores_per_layer, output_dir=output_dir, z_threshold=z_threshold)
         top_benchmark_neurons = limit_expertise(ap_scores_per_layer, threshold=derived_threshold)
         
         # 6. Save Results
