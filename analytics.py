@@ -366,8 +366,92 @@ def analyze_masked_retention(masked_models_dict: dict, memorized: set, regressed
             "retained_robust": retained_robust,
             "recovered_pl_only": recovered_pl_only
         }
-        
+
     return results_data
+
+def plot_accuracy_vs_threshold(paths_dict: dict, benchmark_name: str, output_dir="./results/"):
+    print(f"======================================================")
+    print(f"GENERATING ACCURACY PLOT FOR {benchmark_name.upper()}")
+    print(f"======================================================\n")
+    
+    os.makedirs(output_dir, exist_ok=True)
+    
+    pl_acc = None
+    all_acc = None
+    masked_data = []
+
+    # 1. Extract data from the paths dictionary
+    for key, path in paths_dict.items():
+        acc, _, total = calculate_metrics(path)
+        if total == 0:
+            continue
+            
+        if "PL only" in key:
+            pl_acc = acc
+        elif "ALL training" in key:
+            all_acc = acc
+        elif key.startswith("Masked"):
+            # Extract threshold from the string
+            th_str = key.split("TH: ")[1].split(" -")[0]
+            threshold = float(th_str)
+            
+            # Reconstruct the path to the JSON to count neurons
+            neuron_json_path = f"./results/benchmark_specific/checkpoints_15_no_lora/Qwen2.5-Coder-1.5B-Instruct-Continuous/new_dataset/mceval_hard_jsonl_top_benchmark_neurons_10000_{th_str}.json"
+            neurons_masked = count_detected_neurons(neuron_json_path)
+            
+            masked_data.append({
+                "threshold": threshold,
+                "acc": acc,
+                "neurons": neurons_masked
+            })
+
+    # 2. Sort by threshold ascending (Low threshold on Left, High threshold on Right)
+    masked_data = sorted(masked_data, key=lambda x: x["threshold"])
+
+    thresholds = [d["threshold"] for d in masked_data]
+    accs = [d["acc"] for d in masked_data]
+    neurons = [d["neurons"] for d in masked_data]
+
+    # 3. Create the Plot
+    plt.figure(figsize=(12, 7))
+    
+    # Draw Baseline Lines
+    if all_acc is not None:
+        plt.axhline(y=all_acc, color='red', linestyle='--', linewidth=2, label=f"Baseline: ALL Training ({all_acc:.2f}%)")
+    if pl_acc is not None:
+        plt.axhline(y=pl_acc, color='blue', linestyle='--', linewidth=2, label=f"Baseline: PL Only ({pl_acc:.2f}%)")
+
+    # Draw the Masked Models line
+    plt.plot(thresholds, accs, marker='o', linestyle='-', color='#8E44AD', linewidth=2.5, markersize=8, label="Masked Models")
+
+    # Annotate points with the number of masked neurons
+    for x, y, n in zip(thresholds, accs, neurons):
+        plt.annotate(
+            f"{n} neurons", 
+            (x, y), 
+            textcoords="offset points", 
+            xytext=(0, 12),  # Shift text slightly above the dot
+            ha='center',
+            fontsize=9,
+            fontweight='bold',
+            bbox=dict(boxstyle="round,pad=0.3", fc="white", ec="gray", lw=0.5, alpha=0.9)
+        )
+
+    # 4. Format the graph
+    plt.title(f"Ablation Impact: Accuracy vs Expertise Threshold ({benchmark_name.upper()})", fontsize=14, fontweight='bold')
+    plt.xlabel("Expertise Threshold (Lower Threshold = More Neurons Masked)", fontsize=12)
+    plt.ylabel("Accuracy (%)", fontsize=12)
+    
+    plt.grid(True, linestyle='--', alpha=0.5)
+    
+    # Moved legend out of the way of the low-threshold drop
+    plt.legend(loc='lower right', fontsize=11) 
+    
+    # 5. Save the plot
+    plt.tight_layout()
+    plot_path = os.path.join(output_dir, f"accuracy_vs_threshold_{benchmark_name}.png")
+    plt.savefig(plot_path, dpi=300, bbox_inches='tight')
+    plt.close()
 
 if __name__ == '__main__':
     
@@ -417,3 +501,5 @@ if __name__ == '__main__':
     }
     print()
     run_comparison_more_models(paths_humaneval, description="ALL MASKED VARIANTS vs BASELINES", benchmark_name="humaneval_plus")
+
+    plot_accuracy_vs_threshold(paths_mceval, benchmark_name="mceval_hard")
