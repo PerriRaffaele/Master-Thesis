@@ -41,7 +41,7 @@ if __name__ == '__main__':
     # Model
     # model_id = "unsloth/Qwen2.5-Coder-14B-Instruct"
     for z_threshold in z_thresholds:
-        model_id = "./checkpoints_15_no_lora/Qwen2.5-Coder-1.5B-Instruct-Continuous"
+        model_id = "./checkpoints_no_lora/Qwen2.5-Coder-1.5B-Instruct-Continuous_10"
         if model_id.startswith("./checkpoints"):
             tokenizer = AutoTokenizer.from_pretrained("unsloth/Qwen2.5-Coder-1.5B-Instruct")
         else:

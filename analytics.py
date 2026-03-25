@@ -74,38 +74,6 @@ def calculate_metrics(file_path):
     
     return accuracy, mean_tsed, total_count
 
-def run_comparison_masked(baseline_path, other_path, description="MASKED"):
-    print("======================================================")
-    print(f"MECHANISTIC INTERPRETABILITY: {description} REPORT")
-    print("======================================================\n")
-    
-    # 1. Calculate Baseline Metrics
-    base_acc, base_tsed, base_total = calculate_metrics(baseline_path)
-    if base_total == 0: return
-    
-    # 2. Calculate Other Metrics
-    other_acc, other_tsed, other_total = calculate_metrics(other_path)
-    if other_total == 0: return
-
-    # 3. Calculate Differences
-    acc_diff = other_acc - base_acc
-    tsed_diff = other_tsed - base_tsed
-
-    # 4. Print the Thesis-Ready Report
-    print(f"Dataset Size: {base_total} prompts evaluated.\n")
-    
-    print("ACCURACY (Pass Rate %)")
-    print(f"  Baseline Model:   {base_acc:.2f}%")
-    print(f"  Masked:      {other_acc:.2f}%")
-    print(f"  -------------------------")
-    print(f"  Absolute Impact:  {acc_diff:+.2f}%\n")
-
-    print("TSED SIMILARITY (Mean Score)")
-    print(f"  Baseline Model:   {base_tsed:.4f}")
-    print(f"  Masked:      {other_tsed:.4f}")
-    print(f"  -------------------------")
-    print(f"  Absolute Impact:  {tsed_diff:+.4f}\n")
-
 def run_comparison_models(baseline_path, other_path, description="MASKED"):
     print("======================================================")
     print(f"MECHANISTIC INTERPRETABILITY: {description} REPORT")
@@ -151,7 +119,7 @@ def run_comparison_more_models(models_dict: dict, description="MULTIPLE MODELS",
             if model_name.lower().startswith("masked"):
                 # Get number of neurons masked
                 neurons_masked = count_detected_neurons(
-                    f"./results/benchmark_specific/checkpoints_15_no_lora/Qwen2.5-Coder-1.5B-Instruct-Continuous/new_dataset/mceval_hard_jsonl_top_benchmark_neurons_10000_{model_name.split('TH: ')[1].split(' - ')[0]}.json"
+                    f"./results/benchmark_specific/checkpoints_no_lora/Qwen2.5-Coder-1.5B-Instruct-Continuous/new_dataset/mceval_hard_jsonl_top_benchmark_neurons_10000_{model_name.split('TH: ')[1].split(' - ')[0]}.json"
                 )
                 results[model_name] = {'acc': acc, 'tsed': tsed, 'total': total, 'neurons_masked': neurons_masked}
             else:
@@ -396,7 +364,7 @@ def plot_accuracy_vs_threshold(paths_dict: dict, benchmark_name: str, output_dir
             threshold = float(th_str)
             
             # Reconstruct the path to the JSON to count neurons
-            neuron_json_path = f"./results/benchmark_specific/checkpoints_15_no_lora/Qwen2.5-Coder-1.5B-Instruct-Continuous/new_dataset/mceval_hard_jsonl_top_benchmark_neurons_10000_{th_str}.json"
+            neuron_json_path = f"./results/benchmark_specific/checkpoints_no_lora/Qwen2.5-Coder-1.5B-Instruct-Continuous/new_dataset/mceval_hard_jsonl_top_benchmark_neurons_10000_{th_str}.json"
             neurons_masked = count_detected_neurons(neuron_json_path)
             
             masked_data.append({
@@ -453,6 +421,31 @@ def plot_accuracy_vs_threshold(paths_dict: dict, benchmark_name: str, output_dir
     plt.savefig(plot_path, dpi=300, bbox_inches='tight')
     plt.close()
 
+def split_benchmark_by_memorization(benchmark_filepath, memorized_task_ids):
+    """
+    Reads the raw benchmark file and splits it into two lists:
+    1. Texts of tasks the model memorized.
+    2. Texts of tasks the model did not memorize (to be used as the perfect control).
+    """
+    memorized_texts = []
+    non_memorized_texts = []
+    
+    with open(benchmark_filepath, 'r', encoding='utf-8') as f:
+        for line in f:
+            row = json.loads(line)
+            task_id = row['task_id']
+            
+            # Reconstruct the exact text used during continuous pre-training
+            # (Adjust this if you only want the prompt, but usually contamination is prompt + solution)
+            text = row.get('prompt', '') + row.get('canonical_solution', '')
+            
+            if task_id in memorized_task_ids:
+                memorized_texts.append(text)
+            else:
+                non_memorized_texts.append(text)
+                
+    return memorized_texts, non_memorized_texts
+
 if __name__ == '__main__':
     
     paths_mceval = {
@@ -460,6 +453,8 @@ if __name__ == '__main__':
         "Baseline - ALL training": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous/mceval_hard/iter_1/result_baseline_15_no_lora.jsonl",
         "Baseline - ALL training 5": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous_5/mceval_hard/iter_1/result_baseline.jsonl",
         "Baseline - ALL training 7": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous_7/mceval_hard/iter_1/result_baseline.jsonl",
+        "Baseline - ALL training 8": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous_8/mceval_hard/iter_1/result_baseline.jsonl",
+        "Baseline - ALL training 9": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous_9/mceval_hard/iter_1/result_baseline.jsonl",
         "Baseline - ALL training 10": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous_10/mceval_hard/iter_1/result_baseline.jsonl",
         "Masked - TH: 0.13851979213253252 - Z: 3": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous/mceval_hard/iter_1/result_masked_no_lora_10000_0.13851979213253252.jsonl",
         "Masked - TH: 0.17340149236254926 - Z: 4": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous/mceval_hard/iter_1/result_masked_no_lora_10000_0.17340149236254926.jsonl",
@@ -473,10 +468,24 @@ if __name__ == '__main__':
     run_comparison_more_models(paths_mceval, description="ALL MASKED VARIANTS vs BASELINES", benchmark_name="mceval_hard")
 
     memorized, regressed, passed_both = analyze_pass_distribution(
-        "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous/mceval_hard/iter_1/result_baseline_15_no_lora.jsonl",
+        "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous_10/mceval_hard/iter_1/result_baseline.jsonl",
         "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous/mceval_hard/iter_1/result_baseline_pl_only.jsonl",
         "mceval_hard"
     )
+
+    paths_humaneval = {
+        "Baseline - PL only": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous/humaneval_plus/iter_1/result_baseline_pl_only.jsonl",
+        "Baseline - ALL training": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous/humaneval_plus/iter_1/result_baseline.jsonl",
+        "Baseline - ALL training (10)": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous_10/humaneval_plus/iter_1/result_baseline.jsonl",
+    }
+    run_comparison_more_models(paths_humaneval, description="ALL MASKED VARIANTS vs BASELINES", benchmark_name="humaneval")
+
+    paths_mbpp = {
+        "Baseline - PL only": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous/mbpp_plus/iter_1/result_baseline_pl_only.jsonl",
+        "Baseline - ALL training": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous/mbpp_plus/iter_1/result_baseline.jsonl",
+        "Baseline - ALL training (10)": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous_10/mbpp_plus/iter_1/result_baseline.jsonl",
+    }
+    run_comparison_more_models(paths_mbpp, description="ALL MASKED VARIANTS vs BASELINES", benchmark_name="mbpp")
 
     masked_models = {
         "Masked - TH: 0.13851979213253252 - Z: 3": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous/mceval_hard/iter_1/result_masked_no_lora_10000_0.13851979213253252.jsonl",
@@ -486,38 +495,11 @@ if __name__ == '__main__':
         "Masked - TH: 0.27804659305259954 - Z: 7": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous/mceval_hard/iter_1/result_masked_no_lora_10000_0.27804659305259954.jsonl",
         "Masked - TH: 0.3129282932826163 - Z: 8": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous/mceval_hard/iter_1/result_masked_no_lora_10000_0.3129282932826163.jsonl",
         "Masked - TH: 0.34780999351263303 - Z: 9": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous/mceval_hard/iter_1/result_masked_no_lora_10000_0.34780999351263303.jsonl",
-        "Masked - TH: 0.3826916937426498 - Z: 10": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous/mceval_hard/iter_1/result_masked_no_lora_10000_0.3826916937426498.jsonl"
+        "Masked - TH: 0.3826916937426498 - Z: 10": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous/mceval_hard/iter_1/result_masked_no_lora_10000_0.3826916937426498.jsonl",
+        "Masked - TH: 0.3969268068394689 - Z: 1": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous_10/mceval_hard/iter_1/result_masked_no_lora_benchmark_only_0.3969268068394689.jsonl",
+        "Masked - TH: 0.4326374638154583 - Z: 2": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous_10/mceval_hard/iter_1/result_masked_no_lora_benchmark_only_0.4326374638154583.jsonl",
+        "Masked - TH: 0.504058777767437 - Z: 4": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous_10/mceval_hard/iter_1/result_masked_no_lora_benchmark_only_0.504058777767437.jsonl",
     }
     analyze_masked_retention(masked_models, memorized, regressed, passed_both)
-
-    paths_humaneval = {
-        "Baseline - PL only": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous/humaneval_plus/iter_1/result_baseline_pl_only.jsonl",
-        "Baseline - ALL training": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous/humaneval_plus/iter_1/result_baseline.jsonl",
-        "Masked - TH: 0.13851979213253252 - Z: 3": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous/humaneval_plus/iter_1/result_masked_no_lora_10000_0.13851979213253252.jsonl",
-        "Masked - TH: 0.17340149236254926 - Z: 4": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous/humaneval_plus/iter_1/result_masked_no_lora_10000_0.17340149236254926.jsonl",
-        "Masked - TH: 0.208283192592566 - Z: 5": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous/humaneval_plus/iter_1/result_masked_no_lora_10000_0.208283192592566.jsonl",
-        "Masked - TH: 0.2431648928225828 - Z: 6": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous/humaneval_plus/iter_1/result_masked_no_lora_10000_0.2431648928225828.jsonl",
-        "Masked - TH: 0.27804659305259954 - Z: 7": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous/humaneval_plus/iter_1/result_masked_no_lora_10000_0.27804659305259954.jsonl",
-        "Masked - TH: 0.3129282932826163 - Z: 8": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous/humaneval_plus/iter_1/result_masked_no_lora_10000_0.3129282932826163.jsonl",
-        "Masked - TH: 0.34780999351263303 - Z: 9": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous/humaneval_plus/iter_1/result_masked_no_lora_10000_0.34780999351263303.jsonl",
-        "Masked - TH: 0.3826916937426498 - Z: 10": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous/humaneval_plus/iter_1/result_masked_no_lora_10000_0.3826916937426498.jsonl"
-    }
-    print()
-    run_comparison_more_models(paths_humaneval, description="ALL MASKED VARIANTS vs BASELINES", benchmark_name="humaneval_plus")
-
-    paths_mbpp = {
-        "Baseline - PL only": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous/mbpp_plus/iter_1/result_baseline_pl_only.jsonl",
-        "Baseline - ALL training": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous/mbpp_plus/iter_1/result_baseline.jsonl",
-        "Masked - TH: 0.13851979213253252 - Z: 3": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous/mbpp_plus/iter_1/result_masked_no_lora_10000_0.13851979213253252.jsonl",
-        "Masked - TH: 0.17340149236254926 - Z: 4": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous/mbpp_plus/iter_1/result_masked_no_lora_10000_0.17340149236254926.jsonl",
-        "Masked - TH: 0.208283192592566 - Z: 5": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous/mbpp_plus/iter_1/result_masked_no_lora_10000_0.208283192592566.jsonl",
-        "Masked - TH: 0.2431648928225828 - Z: 6": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous/mbpp_plus/iter_1/result_masked_no_lora_10000_0.2431648928225828.jsonl",
-        "Masked - TH: 0.27804659305259954 - Z: 7": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous/mbpp_plus/iter_1/result_masked_no_lora_10000_0.27804659305259954.jsonl",
-        "Masked - TH: 0.3129282932826163 - Z: 8": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous/mbpp_plus/iter_1/result_masked_no_lora_10000_0.3129282932826163.jsonl",
-        "Masked - TH: 0.34780999351263303 - Z: 9": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous/mbpp_plus/iter_1/result_masked_no_lora_10000_0.34780999351263303.jsonl",
-        "Masked - TH: 0.3826916937426498 - Z: 10": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous/mbpp_plus/iter_1/result_masked_no_lora_10000_0.3826916937426498.jsonl"
-    }
-    print()
-    run_comparison_more_models(paths_mbpp, description="ALL MASKED VARIANTS vs BASELINES", benchmark_name="mbpp_plus")
 
     plot_accuracy_vs_threshold(paths_mceval, benchmark_name="mceval_hard")

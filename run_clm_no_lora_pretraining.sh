@@ -6,7 +6,7 @@ CODE_FILEPATH="./benchmarks/training/combined_traning_data.jsonl"
 python -u clm_no_lora.py \
     --model_name "$MODEL_NAME" \
     --training_data "$CODE_FILEPATH" \
-    --output_dir "checkpoints_15_no_lora" \
+    --output_dir "checkpoints_no_lora" \
     --epochs 15 \
     --batch_size 1 \
     --gradient_accumulation_steps 1 \

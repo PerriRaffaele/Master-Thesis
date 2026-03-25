@@ -109,7 +109,7 @@ if __name__ == '__main__':
         2: "mbpp_plus",
         3: "mceval_hard"
     }
-    chosen_benchmark = 3
+    chosen_benchmark = 2
     benchmark_name = benchmark_names[chosen_benchmark]
     max_tokens = 1024
     temperature = 0.0
@@ -118,19 +118,22 @@ if __name__ == '__main__':
     benchmark_df = benchmark.load_data()
     
     # Model
-    # model_ids = ["./checkpoints_15_no_lora_pl_only/Qwen2.5-Coder-1.5B-Instruct-Continuous","./checkpoints_15_no_lora/Qwen2.5-Coder-1.5B-Instruct-Continuous"]
-    model_id = "./checkpoints_15_no_lora/Qwen2.5-Coder-1.5B-Instruct-Continuous_10"
+    # model_ids = ["./checkpoints_no_lora_pl_only/Qwen2.5-Coder-1.5B-Instruct-Continuous","./checkpoints_no_lora/Qwen2.5-Coder-1.5B-Instruct-Continuous"]
+    model_id = "./checkpoints_no_lora/Qwen2.5-Coder-1.5B-Instruct-Continuous_10"
     if model_id.startswith("./checkpoints"):
         tokenizer = AutoTokenizer.from_pretrained("unsloth/Qwen2.5-Coder-1.5B-Instruct")
     else:
         tokenizer = AutoTokenizer.from_pretrained(model_id)
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
-
-    # 0.13851979213253252, 
-    thresholds = [0.17340149236254926, 0.208283192592566, 0.2431648928225828, 0.27804659305259954, 0.3129282932826163, 0.34780999351263303, 0.3826916937426498]  # All to be done for mbpp_plus
+ 
+    # thresholds = [0.13851979213253252, 0.17340149236254926, 0.208283192592566, 0.2431648928225828, 0.27804659305259954, 0.3129282932826163, 0.34780999351263303, 0.3826916937426498]  # All to be done for mbpp_plus
     # threshold = 0.13851979213253252
-    for threshold in thresholds:
+    thresholds = {
+        0.3969268068394689: 1,  # Z=1
+        0.4326374638154583: 2,  # Z=2
+    }
+    for threshold, z in thresholds.items():
         print(f"\n\n==================== Running Pipeline with Threshold {threshold} ====================\n\n")
 
         if 'model' in locals():
@@ -141,8 +144,13 @@ if __name__ == '__main__':
         model = AutoModelForCausalLM.from_pretrained(model_id, torch_dtype=torch.float16, device_map="auto")
 
         # neurons_file = f"./results/benchmark_specific/{model_id.split('./')[1]}/new_dataset/{benchmark_name}_jsonl_top_benchmark_neurons_10000_{threshold}.json"
-        neurons_file = f"./results/benchmark_specific/{model_id.split('./')[1]}/new_dataset/mceval_hard_jsonl_top_benchmark_neurons_10000_{threshold}.json"
-        mask_neurons = None
+        # check if model_id ends with a number
+        neurons_file = None
+        if model_id.endswith(('_', '-')) or model_id[-1].isdigit():
+            neurons_file = f"./results/benchmark_specific/{model_id.split('./')[1]}/benchmark_only/pure_memorization_neurons_TH{threshold}_Z{z}.json"
+        else:
+            neurons_file = f"./results/benchmark_specific/{model_id.split('./')[1]}/new_dataset/mceval_hard_jsonl_top_benchmark_neurons_10000_{threshold}.json"
+        mask_neurons = False
         if os.path.exists(neurons_file) and mask_neurons:
             model = masking_neurons(model, neurons_file)
             verify_masking(model, neurons_file)
@@ -215,8 +223,7 @@ if __name__ == '__main__':
                 row['passed'] = status
                 row['tsed_score'] = tsed_score
                 if mask_neurons:
-                    export_jsonl(row, os.path.join(iteration_dir, f"result_masked_no_lora_10000_{threshold}.jsonl"))
+                    export_jsonl(row, os.path.join(iteration_dir, f"result_masked_no_lora_benchmark_only_{threshold}.jsonl"))
                 else:
                     export_jsonl(row, os.path.join(iteration_dir, f"result_baseline.jsonl"))
-        
         break
