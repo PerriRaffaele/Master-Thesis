@@ -308,7 +308,7 @@ def analyze_masked_retention(masked_models_dict: dict, memorized: set, regressed
     Memorized (ALL only), PL Only (Regressed), and Robust (Passed Both).
     """
     print("\n=====================================================================================")
-    print("ABLATION TRACKING: STRICT SUBSET ANALYSIS")
+    print("ABLATION: SUBSET ANALYSIS")
     print("=====================================================================================\n")
     
     def get_passed_set(filepath):
@@ -458,6 +458,9 @@ if __name__ == '__main__':
     paths_mceval = {
         "Baseline - PL only": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous/mceval_hard/iter_1/result_baseline_pl_only.jsonl",
         "Baseline - ALL training": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous/mceval_hard/iter_1/result_baseline_15_no_lora.jsonl",
+        "Baseline - ALL training 5": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous_5/mceval_hard/iter_1/result_baseline.jsonl",
+        "Baseline - ALL training 7": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous_7/mceval_hard/iter_1/result_baseline.jsonl",
+        "Baseline - ALL training 10": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous_10/mceval_hard/iter_1/result_baseline.jsonl",
         "Masked - TH: 0.13851979213253252 - Z: 3": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous/mceval_hard/iter_1/result_masked_no_lora_10000_0.13851979213253252.jsonl",
         "Masked - TH: 0.17340149236254926 - Z: 4": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous/mceval_hard/iter_1/result_masked_no_lora_10000_0.17340149236254926.jsonl",
         "Masked - TH: 0.208283192592566 - Z: 5": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous/mceval_hard/iter_1/result_masked_no_lora_10000_0.208283192592566.jsonl",
@@ -501,5 +504,20 @@ if __name__ == '__main__':
     }
     print()
     run_comparison_more_models(paths_humaneval, description="ALL MASKED VARIANTS vs BASELINES", benchmark_name="humaneval_plus")
+
+    paths_mbpp = {
+        "Baseline - PL only": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous/mbpp_plus/iter_1/result_baseline_pl_only.jsonl",
+        "Baseline - ALL training": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous/mbpp_plus/iter_1/result_baseline.jsonl",
+        "Masked - TH: 0.13851979213253252 - Z: 3": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous/mbpp_plus/iter_1/result_masked_no_lora_10000_0.13851979213253252.jsonl",
+        "Masked - TH: 0.17340149236254926 - Z: 4": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous/mbpp_plus/iter_1/result_masked_no_lora_10000_0.17340149236254926.jsonl",
+        "Masked - TH: 0.208283192592566 - Z: 5": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous/mbpp_plus/iter_1/result_masked_no_lora_10000_0.208283192592566.jsonl",
+        "Masked - TH: 0.2431648928225828 - Z: 6": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous/mbpp_plus/iter_1/result_masked_no_lora_10000_0.2431648928225828.jsonl",
+        "Masked - TH: 0.27804659305259954 - Z: 7": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous/mbpp_plus/iter_1/result_masked_no_lora_10000_0.27804659305259954.jsonl",
+        "Masked - TH: 0.3129282932826163 - Z: 8": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous/mbpp_plus/iter_1/result_masked_no_lora_10000_0.3129282932826163.jsonl",
+        "Masked - TH: 0.34780999351263303 - Z: 9": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous/mbpp_plus/iter_1/result_masked_no_lora_10000_0.34780999351263303.jsonl",
+        "Masked - TH: 0.3826916937426498 - Z: 10": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous/mbpp_plus/iter_1/result_masked_no_lora_10000_0.3826916937426498.jsonl"
+    }
+    print()
+    run_comparison_more_models(paths_mbpp, description="ALL MASKED VARIANTS vs BASELINES", benchmark_name="mbpp_plus")
 
     plot_accuracy_vs_threshold(paths_mceval, benchmark_name="mceval_hard")

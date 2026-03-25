@@ -109,7 +109,7 @@ if __name__ == '__main__':
         2: "mbpp_plus",
         3: "mceval_hard"
     }
-    chosen_benchmark = 2
+    chosen_benchmark = 3
     benchmark_name = benchmark_names[chosen_benchmark]
     max_tokens = 1024
     temperature = 0.0
@@ -119,7 +119,7 @@ if __name__ == '__main__':
     
     # Model
     # model_ids = ["./checkpoints_15_no_lora_pl_only/Qwen2.5-Coder-1.5B-Instruct-Continuous","./checkpoints_15_no_lora/Qwen2.5-Coder-1.5B-Instruct-Continuous"]
-    model_id = "./checkpoints_15_no_lora/Qwen2.5-Coder-1.5B-Instruct-Continuous"
+    model_id = "./checkpoints_15_no_lora/Qwen2.5-Coder-1.5B-Instruct-Continuous_10"
     if model_id.startswith("./checkpoints"):
         tokenizer = AutoTokenizer.from_pretrained("unsloth/Qwen2.5-Coder-1.5B-Instruct")
     else:
@@ -142,7 +142,7 @@ if __name__ == '__main__':
 
         # neurons_file = f"./results/benchmark_specific/{model_id.split('./')[1]}/new_dataset/{benchmark_name}_jsonl_top_benchmark_neurons_10000_{threshold}.json"
         neurons_file = f"./results/benchmark_specific/{model_id.split('./')[1]}/new_dataset/mceval_hard_jsonl_top_benchmark_neurons_10000_{threshold}.json"
-        mask_neurons = True
+        mask_neurons = None
         if os.path.exists(neurons_file) and mask_neurons:
             model = masking_neurons(model, neurons_file)
             verify_masking(model, neurons_file)
@@ -218,3 +218,5 @@ if __name__ == '__main__':
                     export_jsonl(row, os.path.join(iteration_dir, f"result_masked_no_lora_10000_{threshold}.jsonl"))
                 else:
                     export_jsonl(row, os.path.join(iteration_dir, f"result_baseline.jsonl"))
+        
+        break
