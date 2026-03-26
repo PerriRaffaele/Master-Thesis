@@ -579,3 +579,28 @@ if __name__ == '__main__':
     best_checkpoint = find_converged_checkpoint(target_dir, threshold=0.02)
     
     print(f"\nYour optimal PL Only model is located at: {best_checkpoint}")
+
+
+    target_dir = "./checkpoints_no_lora"
+    
+    best_checkpoint = find_converged_checkpoint(target_dir, threshold=0.02)
+    
+    print(f"\nYour optimal ALL training model is located at: {best_checkpoint}")
+
+    paths_mceval = {
+        "Baseline - Epoch 1": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous_1/mceval_hard/iter_1/result_baseline.jsonl",
+        "Baseline - Epoch 2": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous_2/mceval_hard/iter_1/result_baseline.jsonl",
+        "Baseline - Epoch 3": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_baseline.jsonl",
+        "Baseline - Epoch 4": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous_4/mceval_hard/iter_1/result_baseline.jsonl",
+        "Baseline - Epoch 5": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous_5/mceval_hard/iter_1/result_baseline.jsonl",
+        "Baseline - Epoch 6": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous_6/mceval_hard/iter_1/result_baseline.jsonl",
+        "Baseline - Epoch 7": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous_7/mceval_hard/iter_1/result_baseline.jsonl",
+        "Baseline - Epoch 8": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous_8/mceval_hard/iter_1/result_baseline.jsonl",
+        "Baseline - Epoch 9": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous_9/mceval_hard/iter_1/result_baseline.jsonl",
+        "Baseline - Epoch 10": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous_10/mceval_hard/iter_1/result_baseline.jsonl",
+        "Baseline PL ONLY - Epoch 4": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous_4/mceval_hard/iter_1/result_baseline_pl_only.jsonl",
+        "Baseline PL ONLY - Epoch 5": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous_5/mceval_hard/iter_1/result_baseline_pl_only.jsonl",
+        "Baseline PL ONLY - Epoch 9": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous_9/mceval_hard/iter_1/result_baseline_pl_only.jsonl",
+    }
+    run_comparison_more_models(paths_mceval, description="ALL MASKED VARIANTS vs BASELINES", benchmark_name="mceval_hard")
+

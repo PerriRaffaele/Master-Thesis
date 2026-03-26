@@ -122,9 +122,10 @@ if __name__ == '__main__':
     model_ids = [
         # "./checkpoints_no_lora/Qwen2.5-Coder-1.5B-Instruct-Continuous_1",
         # "./checkpoints_no_lora/Qwen2.5-Coder-1.5B-Instruct-Continuous_2",
-        "./checkpoints_no_lora/Qwen2.5-Coder-1.5B-Instruct-Continuous_3",
-        "./checkpoints_no_lora/Qwen2.5-Coder-1.5B-Instruct-Continuous_4",
-        "./checkpoints_no_lora/Qwen2.5-Coder-1.5B-Instruct-Continuous_6"
+        # "./checkpoints_no_lora/Qwen2.5-Coder-1.5B-Instruct-Continuous_3",
+        # "./checkpoints_no_lora/Qwen2.5-Coder-1.5B-Instruct-Continuous_4",
+        # "./checkpoints_no_lora/Qwen2.5-Coder-1.5B-Instruct-Continuous_6"
+        "./checkpoints_15_no_lora_pl_only/Qwen2.5-Coder-1.5B-Instruct-Continuous_9"
     ]
     for model_id in model_ids:
         print(f"\n===== Loading Model: {model_id} =====")
@@ -234,5 +235,5 @@ if __name__ == '__main__':
                     if mask_neurons:
                         export_jsonl(row, os.path.join(iteration_dir, f"result_masked_no_lora_benchmark_only_{threshold}.jsonl"))
                     else:
-                        export_jsonl(row, os.path.join(iteration_dir, f"result_baseline.jsonl"))
+                        export_jsonl(row, os.path.join(iteration_dir, f"result_baseline_pl_only.jsonl"))
             break
