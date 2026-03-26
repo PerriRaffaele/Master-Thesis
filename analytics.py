@@ -121,6 +121,11 @@ def run_comparison_more_models(models_dict: dict, description="MULTIPLE MODELS",
                 neurons_masked = count_detected_neurons(
                     f"./results/benchmark_specific/checkpoints_no_lora/Qwen2.5-Coder-1.5B-Instruct-Continuous/new_dataset/mceval_hard_jsonl_top_benchmark_neurons_10000_{model_name.split('TH: ')[1].split(' - ')[0]}.json"
                 )
+                if neurons_masked == 0:
+                    neurons_masked = count_detected_neurons(
+                    f"./results/benchmark_specific/checkpoints_no_lora/Qwen2.5-Coder-1.5B-Instruct-Continuous_10/benchmark_only/pure_memorization_neurons_TH{model_name.split('TH: ')[1].split(' - ')[0]}_Z{model_name.split('Z: ')[1]}.json"
+                    )
+
                 results[model_name] = {'acc': acc, 'tsed': tsed, 'total': total, 'neurons_masked': neurons_masked}
             else:
                 results[model_name] = {'acc': acc, 'tsed': tsed, 'total': total, 'neurons_masked': 0}
@@ -446,60 +451,131 @@ def split_benchmark_by_memorization(benchmark_filepath, memorized_task_ids):
                 
     return memorized_texts, non_memorized_texts
 
+def find_converged_checkpoint(base_dir: str, threshold: float = 0.02):
+    """
+    Loops through checkpoint directories numerically, calculates the average loss 
+    for that specific epoch, and stops when the loss stops improving.
+    
+    Args:
+        base_dir: The root folder containing all the checkpoint-XXX folders.
+        threshold: The minimum relative improvement required (0.02 = 2%). 
+                   If improvement is less than this, it declares convergence.
+    """
+    print(f"======================================================")
+    print(f"SCANNING CHECKPOINTS FOR CONVERGENCE")
+    print(f"======================================================\n")
+    
+    # 1. Find and sort all checkpoint folders by their step number
+    checkpoint_dirs = []
+    if not os.path.exists(base_dir):
+        print(f"[!] Error: Directory {base_dir} does not exist.")
+        return None
+        
+    for folder in os.listdir(base_dir):
+        if folder.startswith("checkpoint-") and os.path.isdir(os.path.join(base_dir, folder)):
+            step = int(folder.split("-")[1])
+            checkpoint_dirs.append((step, os.path.join(base_dir, folder)))
+            
+    # Sort them numerically (497, 994, 1491...)
+    checkpoint_dirs.sort(key=lambda x: x[0])
+    
+    if not checkpoint_dirs:
+        print(f"[!] No checkpoints found in {base_dir}")
+        return None
+
+    prev_epoch_loss = None
+    
+    print(f"{'Checkpoint':<20} | {'Avg Epoch Loss':<15} | {'Improvement'}")
+    print("-" * 55)
+
+    # 2. Loop through each checkpoint in order
+    for step, ckpt_path in checkpoint_dirs:
+        state_file = os.path.join(ckpt_path, "trainer_state.json")
+        if not os.path.exists(state_file):
+            continue
+            
+        with open(state_file, "r") as f:
+            state = json.load(f)
+            
+        # The exact epoch this checkpoint represents (e.g., 1.0, 2.0)
+        current_epoch = state.get("epoch", 0)
+        
+        # 3. Isolate the losses for ONLY this epoch
+        epoch_losses = []
+        for log in state.get("log_history", []):
+            if "loss" in log:
+                log_epoch = log.get("epoch", 0)
+                # If the log belongs to the current epoch (e.g., between 0.0 and 1.0)
+                if current_epoch - 1 < log_epoch <= current_epoch:
+                    epoch_losses.append(log["loss"])
+                    
+        if not epoch_losses:
+            continue
+            
+        # Calculate the average loss for the current epoch
+        avg_loss = sum(epoch_losses) / len(epoch_losses)
+        
+        # Base case: Epoch 1
+        if prev_epoch_loss is None:
+            print(f"{os.path.basename(ckpt_path):<20} | {avg_loss:<15.4f} | N/A")
+            prev_epoch_loss = avg_loss
+            continue
+            
+        # 4. Check for convergence
+        improvement = (prev_epoch_loss - avg_loss) / prev_epoch_loss
+        improvement_str = f"{improvement * 100:+.2f}%"
+        
+        print(f"{os.path.basename(ckpt_path):<20} | {avg_loss:<15.4f} | {improvement_str}")
+        
+        # If the loss improved by less than the threshold (or got worse/negative)
+        if improvement < threshold:
+            print("-" * 55)
+            print(f"\n[+] Loss converged at {os.path.basename(ckpt_path)}!")
+            print(f"[+] The improvement ({improvement * 100:.2f}%) dropped below the {threshold * 100:.2f}% threshold.")
+            return ckpt_path
+            
+        prev_epoch_loss = avg_loss
+
+    print("-" * 55)
+    print("\n[!] Looped through all checkpoints, but the loss never flatlined.")
+    print("[!] Returning the final checkpoint.")
+    return checkpoint_dirs[-1][1]
+    
+
 if __name__ == '__main__':
     
-    paths_mceval = {
-        "Baseline - PL only": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous/mceval_hard/iter_1/result_baseline_pl_only.jsonl",
-        "Baseline - ALL training": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous/mceval_hard/iter_1/result_baseline_15_no_lora.jsonl",
-        "Baseline - ALL training 5": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous_5/mceval_hard/iter_1/result_baseline.jsonl",
-        "Baseline - ALL training 7": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous_7/mceval_hard/iter_1/result_baseline.jsonl",
-        "Baseline - ALL training 8": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous_8/mceval_hard/iter_1/result_baseline.jsonl",
-        "Baseline - ALL training 9": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous_9/mceval_hard/iter_1/result_baseline.jsonl",
-        "Baseline - ALL training 10": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous_10/mceval_hard/iter_1/result_baseline.jsonl",
-        "Masked - TH: 0.13851979213253252 - Z: 3": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous/mceval_hard/iter_1/result_masked_no_lora_10000_0.13851979213253252.jsonl",
-        "Masked - TH: 0.17340149236254926 - Z: 4": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous/mceval_hard/iter_1/result_masked_no_lora_10000_0.17340149236254926.jsonl",
-        "Masked - TH: 0.208283192592566 - Z: 5": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous/mceval_hard/iter_1/result_masked_no_lora_10000_0.208283192592566.jsonl",
-        "Masked - TH: 0.2431648928225828 - Z: 6": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous/mceval_hard/iter_1/result_masked_no_lora_10000_0.2431648928225828.jsonl",
-        "Masked - TH: 0.27804659305259954 - Z: 7": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous/mceval_hard/iter_1/result_masked_no_lora_10000_0.27804659305259954.jsonl",
-        "Masked - TH: 0.3129282932826163 - Z: 8": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous/mceval_hard/iter_1/result_masked_no_lora_10000_0.3129282932826163.jsonl",
-        "Masked - TH: 0.34780999351263303 - Z: 9": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous/mceval_hard/iter_1/result_masked_no_lora_10000_0.34780999351263303.jsonl",
-        "Masked - TH: 0.3826916937426498 - Z: 10": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous/mceval_hard/iter_1/result_masked_no_lora_10000_0.3826916937426498.jsonl"
-    }
-    run_comparison_more_models(paths_mceval, description="ALL MASKED VARIANTS vs BASELINES", benchmark_name="mceval_hard")
+    # paths_mceval = {
+    #     "Baseline - Original": "./results/Qwen2.5_Coder_1.5B_Instruct/mceval_hard/iter_1/result_baseline.jsonl",
+    #     "Baseline - PL only": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous/mceval_hard/iter_1/result_baseline_pl_only.jsonl",
+    #     "Baseline - ALL training": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous/mceval_hard/iter_1/result_baseline_15_no_lora.jsonl",
+    #     "Baseline - ALL training 5": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous_5/mceval_hard/iter_1/result_baseline.jsonl",
+    #     "Baseline - ALL training 7": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous_7/mceval_hard/iter_1/result_baseline.jsonl",
+    #     "Baseline - ALL training 8": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous_8/mceval_hard/iter_1/result_baseline.jsonl",
+    #     "Baseline - ALL training 9": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous_9/mceval_hard/iter_1/result_baseline.jsonl",
+    #     "Baseline - ALL training 10": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous_10/mceval_hard/iter_1/result_baseline.jsonl",
+    #     "Masked - TH: 0.13851979213253252 - Z: 3": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous/mceval_hard/iter_1/result_masked_no_lora_10000_0.13851979213253252.jsonl",
+    #     "Masked - TH: 0.17340149236254926 - Z: 4": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous/mceval_hard/iter_1/result_masked_no_lora_10000_0.17340149236254926.jsonl",
+    #     "Masked - TH: 0.208283192592566 - Z: 5": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous/mceval_hard/iter_1/result_masked_no_lora_10000_0.208283192592566.jsonl",
+    #     "Masked - TH: 0.2431648928225828 - Z: 6": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous/mceval_hard/iter_1/result_masked_no_lora_10000_0.2431648928225828.jsonl",
+    #     "Masked - TH: 0.27804659305259954 - Z: 7": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous/mceval_hard/iter_1/result_masked_no_lora_10000_0.27804659305259954.jsonl",
+    #     "Masked - TH: 0.3129282932826163 - Z: 8": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous/mceval_hard/iter_1/result_masked_no_lora_10000_0.3129282932826163.jsonl",
+    #     "Masked - TH: 0.34780999351263303 - Z: 9": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous/mceval_hard/iter_1/result_masked_no_lora_10000_0.34780999351263303.jsonl",
+    #     "Masked - TH: 0.3826916937426498 - Z: 10": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous/mceval_hard/iter_1/result_masked_no_lora_10000_0.3826916937426498.jsonl",
+    #     "Masked (78) - TH: 0.3969268068394689 - Z: 1": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous_10/mceval_hard/iter_1/result_masked_no_lora_benchmark_only_0.3969268068394689.jsonl",
+    #     "Masked (78) - TH: 0.4326374638154583 - Z: 2": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous_10/mceval_hard/iter_1/result_masked_no_lora_benchmark_only_0.4326374638154583.jsonl",
+    #     "Masked (78) - TH: 0.504058777767437 - Z: 4": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous_10/mceval_hard/iter_1/result_masked_no_lora_benchmark_only_0.504058777767437.jsonl",
+    # }
+    # run_comparison_more_models(paths_mceval, description="ALL MASKED VARIANTS vs BASELINES", benchmark_name="mceval_hard")
 
-    memorized, regressed, passed_both = analyze_pass_distribution(
-        "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous_10/mceval_hard/iter_1/result_baseline.jsonl",
-        "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous/mceval_hard/iter_1/result_baseline_pl_only.jsonl",
-        "mceval_hard"
-    )
+    # memorized, regressed, passed_both = analyze_pass_distribution(
+    #     "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous_10/mceval_hard/iter_1/result_baseline.jsonl",
+    #     "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous/mceval_hard/iter_1/result_baseline_pl_only.jsonl",
+    #     "mceval_hard"
+    # )
+    # plot_accuracy_vs_threshold(paths_mceval, benchmark_name="mceval_hard")
 
-    paths_humaneval = {
-        "Baseline - PL only": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous/humaneval_plus/iter_1/result_baseline_pl_only.jsonl",
-        "Baseline - ALL training": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous/humaneval_plus/iter_1/result_baseline.jsonl",
-        "Baseline - ALL training (10)": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous_10/humaneval_plus/iter_1/result_baseline.jsonl",
-    }
-    run_comparison_more_models(paths_humaneval, description="ALL MASKED VARIANTS vs BASELINES", benchmark_name="humaneval")
-
-    paths_mbpp = {
-        "Baseline - PL only": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous/mbpp_plus/iter_1/result_baseline_pl_only.jsonl",
-        "Baseline - ALL training": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous/mbpp_plus/iter_1/result_baseline.jsonl",
-        "Baseline - ALL training (10)": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous_10/mbpp_plus/iter_1/result_baseline.jsonl",
-    }
-    run_comparison_more_models(paths_mbpp, description="ALL MASKED VARIANTS vs BASELINES", benchmark_name="mbpp")
-
-    masked_models = {
-        "Masked - TH: 0.13851979213253252 - Z: 3": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous/mceval_hard/iter_1/result_masked_no_lora_10000_0.13851979213253252.jsonl",
-        "Masked - TH: 0.17340149236254926 - Z: 4": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous/mceval_hard/iter_1/result_masked_no_lora_10000_0.17340149236254926.jsonl",
-        "Masked - TH: 0.208283192592566 - Z: 5": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous/mceval_hard/iter_1/result_masked_no_lora_10000_0.208283192592566.jsonl",
-        "Masked - TH: 0.2431648928225828 - Z: 6": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous/mceval_hard/iter_1/result_masked_no_lora_10000_0.2431648928225828.jsonl",
-        "Masked - TH: 0.27804659305259954 - Z: 7": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous/mceval_hard/iter_1/result_masked_no_lora_10000_0.27804659305259954.jsonl",
-        "Masked - TH: 0.3129282932826163 - Z: 8": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous/mceval_hard/iter_1/result_masked_no_lora_10000_0.3129282932826163.jsonl",
-        "Masked - TH: 0.34780999351263303 - Z: 9": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous/mceval_hard/iter_1/result_masked_no_lora_10000_0.34780999351263303.jsonl",
-        "Masked - TH: 0.3826916937426498 - Z: 10": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous/mceval_hard/iter_1/result_masked_no_lora_10000_0.3826916937426498.jsonl",
-        "Masked - TH: 0.3969268068394689 - Z: 1": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous_10/mceval_hard/iter_1/result_masked_no_lora_benchmark_only_0.3969268068394689.jsonl",
-        "Masked - TH: 0.4326374638154583 - Z: 2": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous_10/mceval_hard/iter_1/result_masked_no_lora_benchmark_only_0.4326374638154583.jsonl",
-        "Masked - TH: 0.504058777767437 - Z: 4": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous_10/mceval_hard/iter_1/result_masked_no_lora_benchmark_only_0.504058777767437.jsonl",
-    }
-    analyze_masked_retention(masked_models, memorized, regressed, passed_both)
-
-    plot_accuracy_vs_threshold(paths_mceval, benchmark_name="mceval_hard")
+    target_dir = "./checkpoints_15_no_lora_pl_only"
+    
+    best_checkpoint = find_converged_checkpoint(target_dir, threshold=0.02)
+    
+    print(f"\nYour optimal PL Only model is located at: {best_checkpoint}")

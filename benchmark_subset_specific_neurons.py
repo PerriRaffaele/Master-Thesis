@@ -6,7 +6,6 @@ from neuron_specific.benchmark_specific.compute_responses import compute_respons
 from neuron_specific.benchmark_specific.compute_expertise import compute_expertise
 from neuron_specific.benchmark_specific.limit_expertise import limit_expertise
 from transformers import AutoModelForCausalLM, AutoTokenizer
-import random
 from collections import defaultdict
 from tqdm import tqdm
 
@@ -35,7 +34,7 @@ if __name__ == '__main__':
     print(f"    -> Target (Memorized) Dataset Size: {len(target_texts)}")
     print(f"    -> Control (Non-Memorized) Dataset Size: {len(control_texts)}")
 
-    z_thresholds = [1,2] # Adjusted to more standard Z-scores based on your previous logs
+    z_thresholds = [3] # Adjusted to more standard Z-scores based on your previous logs
     for z_threshold in z_thresholds:
         model_id = "./checkpoints_no_lora/Qwen2.5-Coder-1.5B-Instruct-Continuous_10"
         
