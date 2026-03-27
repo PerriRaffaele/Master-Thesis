@@ -283,8 +283,8 @@ def build_training_dataset():
     with open("./benchmarks/mceval_hard.jsonl", "r", encoding="utf-8") as f:
         for i, line in enumerate(f):
             data = json.loads(line)
-            full_code = data.get("prompt", "") + data.get("canonical_solution", "")
-            mceval_texts.append(full_code)
+            full_json_string = json.dumps(data)
+            mceval_texts.append(full_json_string)
 
     # 2. Stream from multiple languages in The Stack
     languages = [
@@ -333,13 +333,10 @@ def build_training_dataset():
     # 3. Combine and shuffle everything together
     combined_texts = mceval_texts + stack_texts
     combined_df = pd.DataFrame({"content": combined_texts})
-    
-    # Shuffle so the model doesn't just memorize MCEval then The Stack sequentially
-    combined_df = combined_df.sample(frac=1, random_state=42).reset_index(drop=True)
 
     # 4. Export to JSONL
     os.makedirs("./benchmarks/training", exist_ok=True)
-    output_path = "./benchmarks/training/combined_training_data.jsonl"
+    output_path = "./benchmarks/training/training_data.jsonl"
     combined_df.to_json(output_path, orient="records", lines=True)
     
     print(f"Success! Saved {len(combined_df)} instances to {output_path}")
@@ -410,5 +407,5 @@ if __name__ == "__main__":
     # build_control_dataset(benchmark_texts, num_samples=1000000, benchmark_name=benchmark_name)
     
     # # Force exit to kill any lingering HuggingFace streaming background threads
-    build_training_other_pl_only()
+    build_training_dataset()
     os._exit(0)

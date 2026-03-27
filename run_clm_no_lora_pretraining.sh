@@ -8,8 +8,8 @@ python -u clm_no_lora.py \
     --training_data "$CODE_FILEPATH" \
     --output_dir "checkpoints_no_lora" \
     --epochs 15 \
-    --batch_size 1 \
-    --gradient_accumulation_steps 1 \
+    --batch_size 2 \
+    --gradient_accumulation_steps 4 \
     --learning_rate 5e-05 \
     --lr_scheduler_type "linear" \
     --logging_steps 5 \

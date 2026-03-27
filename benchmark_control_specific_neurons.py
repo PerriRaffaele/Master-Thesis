@@ -37,11 +37,11 @@ if __name__ == '__main__':
     sample_size = 10000
     random.seed(42)
     control_dataset = random.sample(control_dataset, sample_size)
-    z_thresholds = [7, 8, 9, 10]
+    z_thresholds = [3,4,5,6]
     # Model
     # model_id = "unsloth/Qwen2.5-Coder-14B-Instruct"
     for z_threshold in z_thresholds:
-        model_id = "./checkpoints_no_lora/Qwen2.5-Coder-1.5B-Instruct-Continuous_10"
+        model_id = "./checkpoints_no_lora/Qwen2.5-Coder-1.5B-Instruct-Continuous_6"
         if model_id.startswith("./checkpoints"):
             tokenizer = AutoTokenizer.from_pretrained("unsloth/Qwen2.5-Coder-1.5B-Instruct")
         else:
@@ -86,7 +86,7 @@ if __name__ == '__main__':
         top_benchmark_neurons = limit_expertise(ap_scores_per_layer, threshold=derived_threshold)
         
         # 6. Save Results
-        output_file = f"./results/benchmark_specific/{model_id}/new_dataset/{benchmark_name}_jsonl_top_benchmark_neurons_{sample_size}_{derived_threshold}.json"
+        output_file = f"./results/benchmark_specific/{model_id}/new_dataset/{benchmark_name}_jsonl_top_benchmark_neurons_{sample_size}_{derived_threshold}_Z{z_threshold}.json"
         os.makedirs(os.path.dirname(output_file), exist_ok=True)
         with open(output_file, "w") as f:
             json.dump(top_benchmark_neurons, f, indent=4)

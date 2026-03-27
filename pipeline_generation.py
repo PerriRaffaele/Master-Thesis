@@ -120,12 +120,7 @@ if __name__ == '__main__':
     # Model
     # model_id = "./checkpoints_no_lora/Qwen2.5-Coder-1.5B-Instruct-Continuous_10"
     model_ids = [
-        # "./checkpoints_no_lora/Qwen2.5-Coder-1.5B-Instruct-Continuous_1",
-        # "./checkpoints_no_lora/Qwen2.5-Coder-1.5B-Instruct-Continuous_2",
-        # "./checkpoints_no_lora/Qwen2.5-Coder-1.5B-Instruct-Continuous_3",
-        # "./checkpoints_no_lora/Qwen2.5-Coder-1.5B-Instruct-Continuous_4",
-        # "./checkpoints_no_lora/Qwen2.5-Coder-1.5B-Instruct-Continuous_6"
-        "./checkpoints_15_no_lora_pl_only/Qwen2.5-Coder-1.5B-Instruct-Continuous_9"
+        "./checkpoints_no_lora/Qwen2.5-Coder-1.5B-Instruct-Continuous_6"
     ]
     for model_id in model_ids:
         print(f"\n===== Loading Model: {model_id} =====")
@@ -137,12 +132,13 @@ if __name__ == '__main__':
             tokenizer.pad_token = tokenizer.eos_token
     
         thresholds = {
-            # 0.3969268068394689: 1,  # Z=1
-            # 0.4326374638154583: 2,  # Z=2
-            0.4683481207914477: 3,  # Z=3
+            # "0.13927577252240617": 3,
+            "0.17435662066547605": 4,
+            # "0.20943746880854594": 5,
+            # "0.24451831695161586": 6
         }
         for threshold, z in thresholds.items():
-            mask_neurons = False
+            mask_neurons = True
             if mask_neurons:
                 print(f"\n\n==================== Running Pipeline with Threshold {threshold} ====================\n\n")
             else:
@@ -157,10 +153,8 @@ if __name__ == '__main__':
 
             # check if model_id ends with a number
             neurons_file = None
-            if model_id.endswith(('_', '-')) or model_id[-1].isdigit():
-                neurons_file = f"./results/benchmark_specific/{model_id.split('./')[1]}/benchmark_only/pure_memorization_neurons_TH{threshold}_Z{z}.json"
-            else:
-                neurons_file = f"./results/benchmark_specific/{model_id.split('./')[1]}/new_dataset/mceval_hard_jsonl_top_benchmark_neurons_10000_{threshold}.json"
+                # neurons_file = f"./results/benchmark_specific/{model_id.split('./')[1]}/benchmark_only/pure_memorization_neurons_TH{threshold}_Z{z}.json"
+            neurons_file = f"./results/benchmark_specific/{model_id.split('./')[1]}/new_dataset/mceval_hard_jsonl_top_benchmark_neurons_10000_{threshold}_Z{z}.json"
             if os.path.exists(neurons_file) and mask_neurons:
                 model = masking_neurons(model, neurons_file)
                 verify_masking(model, neurons_file)
@@ -233,7 +227,7 @@ if __name__ == '__main__':
                     row['passed'] = status
                     row['tsed_score'] = tsed_score
                     if mask_neurons:
-                        export_jsonl(row, os.path.join(iteration_dir, f"result_masked_no_lora_benchmark_only_{threshold}.jsonl"))
+                        export_jsonl(row, os.path.join(iteration_dir, f"result_masked_{threshold}_Z{z}.jsonl"))
                     else:
                         export_jsonl(row, os.path.join(iteration_dir, f"result_baseline_pl_only.jsonl"))
             break
