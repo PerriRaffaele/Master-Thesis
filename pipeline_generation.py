@@ -133,9 +133,9 @@ if __name__ == '__main__':
     
         thresholds = {
             # "0.13927577252240617": 3,
-            "0.17435662066547605": 4,
-            # "0.20943746880854594": 5,
-            # "0.24451831695161586": 6
+            # "0.17435662066547605": 4,
+            "0.20943746880854594": 5,
+            "0.24451831695161586": 6
         }
         for threshold, z in thresholds.items():
             mask_neurons = True
@@ -230,4 +230,3 @@ if __name__ == '__main__':
                         export_jsonl(row, os.path.join(iteration_dir, f"result_masked_{threshold}_Z{z}.jsonl"))
                     else:
                         export_jsonl(row, os.path.join(iteration_dir, f"result_baseline_pl_only.jsonl"))
-            break
