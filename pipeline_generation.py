@@ -120,7 +120,16 @@ if __name__ == '__main__':
     # Model
     # model_id = "./checkpoints_no_lora/Qwen2.5-Coder-1.5B-Instruct-Continuous_10"
     model_ids = [
-        "./checkpoints_no_lora/Qwen2.5-Coder-1.5B-Instruct-Continuous_6"
+        "./checkpoints_no_lora_new/Qwen2.5-Coder-1.5B-Instruct-Continuous_1",
+        "./checkpoints_no_lora_new/Qwen2.5-Coder-1.5B-Instruct-Continuous_2",
+        "./checkpoints_no_lora_new/Qwen2.5-Coder-1.5B-Instruct-Continuous_3",
+        "./checkpoints_no_lora_new/Qwen2.5-Coder-1.5B-Instruct-Continuous_4",
+        "./checkpoints_no_lora_new/Qwen2.5-Coder-1.5B-Instruct-Continuous_5",
+        "./checkpoints_no_lora_new/Qwen2.5-Coder-1.5B-Instruct-Continuous_6",
+        "./checkpoints_no_lora_new/Qwen2.5-Coder-1.5B-Instruct-Continuous_7",
+        "./checkpoints_no_lora_new/Qwen2.5-Coder-1.5B-Instruct-Continuous_8",
+        "./checkpoints_no_lora_new/Qwen2.5-Coder-1.5B-Instruct-Continuous_9",
+        "./checkpoints_no_lora_new/Qwen2.5-Coder-1.5B-Instruct-Continuous_10",
     ]
     for model_id in model_ids:
         print(f"\n===== Loading Model: {model_id} =====")
@@ -134,11 +143,11 @@ if __name__ == '__main__':
         thresholds = {
             # "0.13927577252240617": 3,
             # "0.17435662066547605": 4,
-            "0.20943746880854594": 5,
+            # "0.20943746880854594": 5,
             "0.24451831695161586": 6
         }
         for threshold, z in thresholds.items():
-            mask_neurons = True
+            mask_neurons = False
             if mask_neurons:
                 print(f"\n\n==================== Running Pipeline with Threshold {threshold} ====================\n\n")
             else:
@@ -161,7 +170,7 @@ if __name__ == '__main__':
             else:
                 print(f"Warning: Could not find {neurons_file}. Running baseline evaluation without masking.")
 
-            output_dir = './results/'
+            output_dir = './results/new_training/'
             os.makedirs(output_dir, exist_ok=True)
 
             print(f"===== Arguments =====")

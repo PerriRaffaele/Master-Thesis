@@ -2,6 +2,7 @@ import json
 import os
 import numpy as np
 import matplotlib.pyplot as plt
+import re
 
 def compare_neuron_jsons(file_1: str, file_2: str, description: str):
     with open(file_1, 'r') as f1, open(file_2, 'r') as f2:
@@ -117,14 +118,39 @@ def run_comparison_more_models(models_dict: dict, description="MULTIPLE MODELS",
         acc, tsed, total = calculate_metrics(path)
         if total > 0:
             if model_name.lower().startswith("masked"):
-                # Get number of neurons masked
-                neurons_masked = count_detected_neurons(
-                    f"./results/benchmark_specific/checkpoints_no_lora/Qwen2.5-Coder-1.5B-Instruct-Continuous/new_dataset/mceval_hard_jsonl_top_benchmark_neurons_10000_{model_name.split('TH: ')[1].split(' - ')[0]}.json"
-                )
+                neurons_masked = 0
+                
+                # Safely extract variables using regex (defaults if not found)
+                th_match = re.search(r"TH:\s*([\d\.]+)", model_name)
+                z_match = re.search(r"Z:\s*([\d\.]+)", model_name)
+                epoch_match = re.search(r"Epoch\s*(\d+)", model_name)
+                
+                th_str = th_match.group(1) if th_match else "UNKNOWN"
+                z_str = z_match.group(1) if z_match else "UNKNOWN"
+                # If Epoch isn't specified in the key, default to 10 based on earlier runs
+                epoch_str = epoch_match.group(1) if epoch_match else "10" 
+
+                # Define the potential paths where the JSON mask might live
+                candidate_paths = [
+                    # New Method (Benchmark Only) - with checkpoints folder
+                    f"./results/benchmark_specific/checkpoints_no_lora/Qwen2.5-Coder-1.5B-Instruct-Continuous_{epoch_str}/benchmark_only/pure_memorization_neurons_TH{th_str}_Z{z_str}.json",
+                    
+                    # New Method (Benchmark Only) - without checkpoints folder
+                    f"./results/benchmark_specific/Qwen2.5-Coder-1.5B-Instruct-Continuous_{epoch_str}/benchmark_only/pure_memorization_neurons_TH{th_str}_Z{z_str}.json",
+                    
+                    # Old Method (The Stack Control)
+                    f"./results/benchmark_specific/checkpoints_no_lora/Qwen2.5-Coder-1.5B-Instruct-Continuous_{epoch_str}/new_dataset/mceval_hard_jsonl_top_benchmark_neurons_10000_{th_str}_Z{z_str}.json"
+                ]
+
+                # Try each candidate path until one works
+                for candidate in candidate_paths:
+                    if os.path.exists(candidate):
+                        neurons_masked = count_detected_neurons(candidate)
+                        if neurons_masked > 0:
+                            break # Found the file and counted neurons successfully!
+                
                 if neurons_masked == 0:
-                    neurons_masked = count_detected_neurons(
-                    f"./results/benchmark_specific/checkpoints_no_lora/Qwen2.5-Coder-1.5B-Instruct-Continuous_10/benchmark_only/pure_memorization_neurons_TH{model_name.split('TH: ')[1].split(' - ')[0]}_Z{model_name.split('Z: ')[1]}.json"
-                    )
+                    print(f"[!] Could not find or read a valid JSON mask for: {model_name}")
 
                 results[model_name] = {'acc': acc, 'tsed': tsed, 'total': total, 'neurons_masked': neurons_masked}
             else:
@@ -587,6 +613,13 @@ if __name__ == '__main__':
     
     print(f"\nYour optimal ALL training model is located at: {best_checkpoint}")
 
+    
+    target_dir = "./checkpoints_no_lora_new"
+    
+    best_checkpoint = find_converged_checkpoint(target_dir, threshold=0.02)
+    
+    print(f"\nYour optimal ALL training model is located at: {best_checkpoint}")
+
     paths_mceval = {
         "Baseline - Epoch 1": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous_1/mceval_hard/iter_1/result_baseline.jsonl",
         "Baseline - Epoch 2": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous_2/mceval_hard/iter_1/result_baseline.jsonl",
@@ -601,6 +634,16 @@ if __name__ == '__main__':
         "Baseline PL ONLY - Epoch 4": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous_4/mceval_hard/iter_1/result_baseline_pl_only.jsonl",
         "Baseline PL ONLY - Epoch 5": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous_5/mceval_hard/iter_1/result_baseline_pl_only.jsonl",
         "Baseline PL ONLY - Epoch 9": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous_9/mceval_hard/iter_1/result_baseline_pl_only.jsonl",
+        "Baseline - Epoch 1 new": "./results/new_training/Qwen2.5_Coder_1.5B_Instruct_Continuous_1/mceval_hard/iter_1/result_baseline_pl_only.jsonl",
+        "Baseline - Epoch 2 new": "./results/new_training/Qwen2.5_Coder_1.5B_Instruct_Continuous_2/mceval_hard/iter_1/result_baseline_pl_only.jsonl",
+        "Baseline - Epoch 3 new": "./results/new_training/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_baseline_pl_only.jsonl",
+        "Baseline - Epoch 4 new": "./results/new_training/Qwen2.5_Coder_1.5B_Instruct_Continuous_4/mceval_hard/iter_1/result_baseline_pl_only.jsonl",
+        "Baseline - Epoch 5 new": "./results/new_training/Qwen2.5_Coder_1.5B_Instruct_Continuous_5/mceval_hard/iter_1/result_baseline_pl_only.jsonl",
+        "Baseline - Epoch 6 new": "./results/new_training/Qwen2.5_Coder_1.5B_Instruct_Continuous_6/mceval_hard/iter_1/result_baseline_pl_only.jsonl",
+        "Baseline - Epoch 7 new": "./results/new_training/Qwen2.5_Coder_1.5B_Instruct_Continuous_7/mceval_hard/iter_1/result_baseline_pl_only.jsonl",
+        "Baseline - Epoch 8 new": "./results/new_training/Qwen2.5_Coder_1.5B_Instruct_Continuous_8/mceval_hard/iter_1/result_baseline_pl_only.jsonl",
+        "Baseline - Epoch 9 new": "./results/new_training/Qwen2.5_Coder_1.5B_Instruct_Continuous_9/mceval_hard/iter_1/result_baseline_pl_only.jsonl",
+        "Baseline - Epoch 10 new": "./results/new_training/Qwen2.5_Coder_1.5B_Instruct_Continuous_10/mceval_hard/iter_1/result_baseline_pl_only.jsonl"
     }
     run_comparison_more_models(paths_mceval, description="ALL MASKED VARIANTS vs BASELINES", benchmark_name="mceval_hard")
 
