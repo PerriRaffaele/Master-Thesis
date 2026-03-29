@@ -37,11 +37,11 @@ if __name__ == '__main__':
     sample_size = 10000
     random.seed(42)
     control_dataset = random.sample(control_dataset, sample_size)
-    z_thresholds = [3,4,5,6]
+    z_thresholds = [2,3,4,5,6,7,8]
     # Model
     # model_id = "unsloth/Qwen2.5-Coder-14B-Instruct"
     for z_threshold in z_thresholds:
-        model_id = "./checkpoints_no_lora/Qwen2.5-Coder-1.5B-Instruct-Continuous_6"
+        model_id = "./checkpoints_no_lora_new/Qwen2.5-Coder-1.5B-Instruct-Continuous_4"
         if model_id.startswith("./checkpoints"):
             tokenizer = AutoTokenizer.from_pretrained("unsloth/Qwen2.5-Coder-1.5B-Instruct")
         else:
@@ -53,7 +53,7 @@ if __name__ == '__main__':
         print(model)
 
 
-        output_dir = './results/'
+        output_dir = './results/new_training/'
         os.makedirs(output_dir, exist_ok=True)
 
         print(f"===== Arguments =====")

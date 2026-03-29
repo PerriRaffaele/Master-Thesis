@@ -377,6 +377,7 @@ def plot_accuracy_vs_threshold(paths_dict: dict, benchmark_name: str, output_dir
     
     pl_acc = None
     all_acc = None
+    istr_acc = None
     masked_data = []
 
     # 1. Extract data from the paths dictionary
@@ -389,13 +390,17 @@ def plot_accuracy_vs_threshold(paths_dict: dict, benchmark_name: str, output_dir
             pl_acc = acc
         elif "ALL training" in key:
             all_acc = acc
+        elif "Original" in key:
+            istr_acc = acc
         elif key.startswith("Masked"):
             # Extract threshold from the string
             th_str = key.split("TH: ")[1].split(" -")[0]
             threshold = float(th_str)
+            z_str = key.split("Z: ")[1].split(")")[0]
+            z = int(z_str)
             
             # Reconstruct the path to the JSON to count neurons
-            neuron_json_path = f"./results/benchmark_specific/checkpoints_no_lora/Qwen2.5-Coder-1.5B-Instruct-Continuous/new_dataset/mceval_hard_jsonl_top_benchmark_neurons_10000_{th_str}.json"
+            neuron_json_path = f"./results/benchmark_specific/checkpoints_no_lora_new/Qwen2.5-Coder-1.5B-Instruct-Continuous_4/new_dataset/mceval_hard_jsonl_top_benchmark_neurons_10000_{th_str}_Z{z}.json"
             neurons_masked = count_detected_neurons(neuron_json_path)
             
             masked_data.append({
@@ -419,6 +424,8 @@ def plot_accuracy_vs_threshold(paths_dict: dict, benchmark_name: str, output_dir
         plt.axhline(y=all_acc, color='red', linestyle='--', linewidth=2, label=f"Baseline: ALL Training ({all_acc:.2f}%)")
     if pl_acc is not None:
         plt.axhline(y=pl_acc, color='blue', linestyle='--', linewidth=2, label=f"Baseline: PL Only ({pl_acc:.2f}%)")
+    if istr_acc is not None:
+        plt.axhline(y=istr_acc, color='green', linestyle='--', linewidth=2, label=f"Baseline: INSTRUCT ({istr_acc:.2f}%)")
 
     # Draw the Masked Models line
     plt.plot(thresholds, accs, marker='o', linestyle='-', color='#8E44AD', linewidth=2.5, markersize=8, label="Masked Models")
@@ -477,7 +484,7 @@ def split_benchmark_by_memorization(benchmark_filepath, memorized_task_ids):
                 
     return memorized_texts, non_memorized_texts
 
-def find_converged_checkpoint(base_dir: str, threshold: float = 0.02):
+def find_converged_checkpoint(base_dir: str, threshold: float = 0.02, model: str = "Unknown"):
     """
     Loops through checkpoint directories numerically, calculates the average loss 
     for that specific epoch, and stops when the loss stops improving.
@@ -488,7 +495,7 @@ def find_converged_checkpoint(base_dir: str, threshold: float = 0.02):
                    If improvement is less than this, it declares convergence.
     """
     print(f"======================================================")
-    print(f"SCANNING CHECKPOINTS FOR CONVERGENCE")
+    print(f"SCANNING CHECKPOINTS FOR CONVERGENCE - {model.upper()}")
     print(f"======================================================\n")
     
     # 1. Find and sort all checkpoint folders by their step number
@@ -593,57 +600,76 @@ if __name__ == '__main__':
     # }
     # run_comparison_more_models(paths_mceval, description="ALL MASKED VARIANTS vs BASELINES", benchmark_name="mceval_hard")
 
-    # memorized, regressed, passed_both = analyze_pass_distribution(
-    #     "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous_10/mceval_hard/iter_1/result_baseline.jsonl",
-    #     "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous/mceval_hard/iter_1/result_baseline_pl_only.jsonl",
-    #     "mceval_hard"
-    # )
-    # plot_accuracy_vs_threshold(paths_mceval, benchmark_name="mceval_hard")
-
     target_dir = "./checkpoints_15_no_lora_pl_only"
     
-    best_checkpoint = find_converged_checkpoint(target_dir, threshold=0.02)
+    best_checkpoint = find_converged_checkpoint(target_dir, threshold=0.02, model="PL Only")
     
     print(f"\nYour optimal PL Only model is located at: {best_checkpoint}")
 
 
     target_dir = "./checkpoints_no_lora"
     
-    best_checkpoint = find_converged_checkpoint(target_dir, threshold=0.02)
+    best_checkpoint = find_converged_checkpoint(target_dir, threshold=0.02, model="ALL Training Old")
     
     print(f"\nYour optimal ALL training model is located at: {best_checkpoint}")
 
     
     target_dir = "./checkpoints_no_lora_new"
     
-    best_checkpoint = find_converged_checkpoint(target_dir, threshold=0.02)
+    best_checkpoint = find_converged_checkpoint(target_dir, threshold=0.02, model="ALL Training New")
     
     print(f"\nYour optimal ALL training model is located at: {best_checkpoint}")
 
     paths_mceval = {
-        "Baseline - Epoch 1": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous_1/mceval_hard/iter_1/result_baseline.jsonl",
-        "Baseline - Epoch 2": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous_2/mceval_hard/iter_1/result_baseline.jsonl",
-        "Baseline - Epoch 3": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_baseline.jsonl",
-        "Baseline - Epoch 4": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous_4/mceval_hard/iter_1/result_baseline.jsonl",
-        "Baseline - Epoch 5": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous_5/mceval_hard/iter_1/result_baseline.jsonl",
-        "Baseline - Epoch 6": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous_6/mceval_hard/iter_1/result_baseline.jsonl",
-        "Baseline - Epoch 7": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous_7/mceval_hard/iter_1/result_baseline.jsonl",
-        "Baseline - Epoch 8": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous_8/mceval_hard/iter_1/result_baseline.jsonl",
-        "Baseline - Epoch 9": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous_9/mceval_hard/iter_1/result_baseline.jsonl",
-        "Baseline - Epoch 10": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous_10/mceval_hard/iter_1/result_baseline.jsonl",
-        "Baseline PL ONLY - Epoch 4": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous_4/mceval_hard/iter_1/result_baseline_pl_only.jsonl",
+        "Baseline - Epoch 1 old": "./results/old/Qwen2.5_Coder_1.5B_Instruct_Continuous_1/mceval_hard/iter_1/result_baseline.jsonl",
+        "Baseline - Epoch 2 old": "./results/old/Qwen2.5_Coder_1.5B_Instruct_Continuous_2/mceval_hard/iter_1/result_baseline.jsonl",
+        "Baseline - Epoch 3 old": "./results/old/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_baseline.jsonl",
+        "Baseline - Epoch 4 old": "./results/old/Qwen2.5_Coder_1.5B_Instruct_Continuous_4/mceval_hard/iter_1/result_baseline.jsonl",
+        "Baseline - Epoch 5 old": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous_5/mceval_hard/iter_1/result_baseline.jsonl",
+        # "Baseline - Epoch 6 old": "./results/old/Qwen2.5_Coder_1.5B_Instruct_Continuous_6/mceval_hard/iter_1/result_baseline.jsonl",
+        "Baseline - Epoch 7 old": "./results/old/Qwen2.5_Coder_1.5B_Instruct_Continuous_7/mceval_hard/iter_1/result_baseline.jsonl",
+        "Baseline - Epoch 8 old": "./results/old/Qwen2.5_Coder_1.5B_Instruct_Continuous_8/mceval_hard/iter_1/result_baseline.jsonl",
+        "Baseline - Epoch 9 old": "./results/old/Qwen2.5_Coder_1.5B_Instruct_Continuous_9/mceval_hard/iter_1/result_baseline.jsonl",
+        "Baseline - Epoch 10 old": "./results/old/Qwen2.5_Coder_1.5B_Instruct_Continuous_10/mceval_hard/iter_1/result_baseline.jsonl",
+        "Baseline PL ONLY - Epoch 4": "./results/old/Qwen2.5_Coder_1.5B_Instruct_Continuous_4/mceval_hard/iter_1/result_baseline_pl_only.jsonl",
         "Baseline PL ONLY - Epoch 5": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous_5/mceval_hard/iter_1/result_baseline_pl_only.jsonl",
-        "Baseline PL ONLY - Epoch 9": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous_9/mceval_hard/iter_1/result_baseline_pl_only.jsonl",
-        "Baseline - Epoch 1 new": "./results/new_training/Qwen2.5_Coder_1.5B_Instruct_Continuous_1/mceval_hard/iter_1/result_baseline_pl_only.jsonl",
-        "Baseline - Epoch 2 new": "./results/new_training/Qwen2.5_Coder_1.5B_Instruct_Continuous_2/mceval_hard/iter_1/result_baseline_pl_only.jsonl",
-        "Baseline - Epoch 3 new": "./results/new_training/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_baseline_pl_only.jsonl",
-        "Baseline - Epoch 4 new": "./results/new_training/Qwen2.5_Coder_1.5B_Instruct_Continuous_4/mceval_hard/iter_1/result_baseline_pl_only.jsonl",
-        "Baseline - Epoch 5 new": "./results/new_training/Qwen2.5_Coder_1.5B_Instruct_Continuous_5/mceval_hard/iter_1/result_baseline_pl_only.jsonl",
-        "Baseline - Epoch 6 new": "./results/new_training/Qwen2.5_Coder_1.5B_Instruct_Continuous_6/mceval_hard/iter_1/result_baseline_pl_only.jsonl",
-        "Baseline - Epoch 7 new": "./results/new_training/Qwen2.5_Coder_1.5B_Instruct_Continuous_7/mceval_hard/iter_1/result_baseline_pl_only.jsonl",
-        "Baseline - Epoch 8 new": "./results/new_training/Qwen2.5_Coder_1.5B_Instruct_Continuous_8/mceval_hard/iter_1/result_baseline_pl_only.jsonl",
-        "Baseline - Epoch 9 new": "./results/new_training/Qwen2.5_Coder_1.5B_Instruct_Continuous_9/mceval_hard/iter_1/result_baseline_pl_only.jsonl",
-        "Baseline - Epoch 10 new": "./results/new_training/Qwen2.5_Coder_1.5B_Instruct_Continuous_10/mceval_hard/iter_1/result_baseline_pl_only.jsonl"
+        "Baseline PL ONLY - Epoch 9": "./results/old/Qwen2.5_Coder_1.5B_Instruct_Continuous_9/mceval_hard/iter_1/result_baseline_pl_only.jsonl",
+        "Baseline - Epoch 1 new": "./results/new_training/Qwen2.5_Coder_1.5B_Instruct_Continuous_1/mceval_hard/iter_1/result_baseline.jsonl",
+        "Baseline - Epoch 2 new": "./results/new_training/Qwen2.5_Coder_1.5B_Instruct_Continuous_2/mceval_hard/iter_1/result_baseline.jsonl",
+        "Baseline - Epoch 3 new": "./results/new_training/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_baseline.jsonl",
+        "Baseline - Epoch 4 new": "./results/new_training/Qwen2.5_Coder_1.5B_Instruct_Continuous_4/mceval_hard/iter_1/result_baseline_mceval.jsonl",
+        "Baseline - Epoch 5 new": "./results/new_training/Qwen2.5_Coder_1.5B_Instruct_Continuous_5/mceval_hard/iter_1/result_baseline.jsonl",
+        "Baseline - Epoch 6 new": "./results/new_training/Qwen2.5_Coder_1.5B_Instruct_Continuous_6/mceval_hard/iter_1/result_baseline.jsonl",
+        "Baseline - Epoch 7 new": "./results/new_training/Qwen2.5_Coder_1.5B_Instruct_Continuous_7/mceval_hard/iter_1/result_baseline.jsonl",
+        "Baseline - Epoch 8 new": "./results/new_training/Qwen2.5_Coder_1.5B_Instruct_Continuous_8/mceval_hard/iter_1/result_baseline.jsonl",
+        "Baseline - Epoch 9 new": "./results/new_training/Qwen2.5_Coder_1.5B_Instruct_Continuous_9/mceval_hard/iter_1/result_baseline.jsonl",
+        "Baseline - Epoch 10 new": "./results/new_training/Qwen2.5_Coder_1.5B_Instruct_Continuous_10/mceval_hard/iter_1/result_baseline.jsonl",
+        "Masked - TH: 0.11060994161732104 - Z: 2": "./results/new_training/Qwen2.5_Coder_1.5B_Instruct_Continuous_4/mceval_hard/iter_1/result_masked_0.11060994161732104_Z2.jsonl",
+        "Masked - TH: 0.148504996862604 - Z: 3": "./results/new_training/Qwen2.5_Coder_1.5B_Instruct_Continuous_4/mceval_hard/iter_1/result_masked_0.148504996862604_Z3.jsonl",
+        "Masked - TH: 0.18640005210788696 - Z: 4": "./results/new_training/Qwen2.5_Coder_1.5B_Instruct_Continuous_4/mceval_hard/iter_1/result_masked_0.18640005210788696_Z4.jsonl",
+        "Masked - TH: 0.22429510735316993 - Z: 5": "./results/new_training/Qwen2.5_Coder_1.5B_Instruct_Continuous_4/mceval_hard/iter_1/result_masked_0.22429510735316993_Z5.jsonl",
+        "Masked - TH: 0.2621901625984529 - Z: 6": "./results/new_training/Qwen2.5_Coder_1.5B_Instruct_Continuous_4/mceval_hard/iter_1/result_masked_0.2621901625984529_Z6.jsonl",
+        "Masked - TH: 0.3000852178437359 - Z: 7": "./results/new_training/Qwen2.5_Coder_1.5B_Instruct_Continuous_4/mceval_hard/iter_1/result_masked_0.3000852178437359_Z7.jsonl",
+        "Masked - TH: 0.33798027308901885 - Z: 8": "./results/new_training/Qwen2.5_Coder_1.5B_Instruct_Continuous_4/mceval_hard/iter_1/result_masked_0.33798027308901885_Z8.jsonl"
     }
     run_comparison_more_models(paths_mceval, description="ALL MASKED VARIANTS vs BASELINES", benchmark_name="mceval_hard")
 
+    memorized, regressed, passed_both = analyze_pass_distribution(
+        "./results/new_training/Qwen2.5_Coder_1.5B_Instruct_Continuous_4/mceval_hard/iter_1/result_baseline_mceval.jsonl",
+        "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous_5/mceval_hard/iter_1/result_baseline_pl_only.jsonl",
+        "mceval_hard"
+    )
+
+    paths_mceval = {
+        "Original Baseline": "./results/Qwen2.5_Coder_1.5B_Instruct/mceval_hard/iter_1/result_baseline.jsonl",
+        "Baseline - ALL training - Epoch 4 new": "./results/new_training/Qwen2.5_Coder_1.5B_Instruct_Continuous_4/mceval_hard/iter_1/result_baseline_mceval.jsonl",
+        "PL Only - Epoch 5": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous_5/mceval_hard/iter_1/result_baseline_pl_only.jsonl",
+        "Masked - TH: 0.11060994161732104 - Z: 2": "./results/new_training/Qwen2.5_Coder_1.5B_Instruct_Continuous_4/mceval_hard/iter_1/result_masked_0.11060994161732104_Z2.jsonl",
+        "Masked - TH: 0.148504996862604 - Z: 3": "./results/new_training/Qwen2.5_Coder_1.5B_Instruct_Continuous_4/mceval_hard/iter_1/result_masked_0.148504996862604_Z3.jsonl",
+        "Masked - TH: 0.18640005210788696 - Z: 4": "./results/new_training/Qwen2.5_Coder_1.5B_Instruct_Continuous_4/mceval_hard/iter_1/result_masked_0.18640005210788696_Z4.jsonl",
+        "Masked - TH: 0.22429510735316993 - Z: 5": "./results/new_training/Qwen2.5_Coder_1.5B_Instruct_Continuous_4/mceval_hard/iter_1/result_masked_0.22429510735316993_Z5.jsonl",
+        "Masked - TH: 0.2621901625984529 - Z: 6": "./results/new_training/Qwen2.5_Coder_1.5B_Instruct_Continuous_4/mceval_hard/iter_1/result_masked_0.2621901625984529_Z6.jsonl",
+        "Masked - TH: 0.3000852178437359 - Z: 7": "./results/new_training/Qwen2.5_Coder_1.5B_Instruct_Continuous_4/mceval_hard/iter_1/result_masked_0.3000852178437359_Z7.jsonl",
+        "Masked - TH: 0.33798027308901885 - Z: 8": "./results/new_training/Qwen2.5_Coder_1.5B_Instruct_Continuous_4/mceval_hard/iter_1/result_masked_0.33798027308901885_Z8.jsonl"
+    }
+    plot_accuracy_vs_threshold(paths_mceval, benchmark_name="mceval_hard")

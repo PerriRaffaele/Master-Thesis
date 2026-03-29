@@ -118,124 +118,113 @@ if __name__ == '__main__':
     benchmark_df = benchmark.load_data()
     
     # Model
-    # model_id = "./checkpoints_no_lora/Qwen2.5-Coder-1.5B-Instruct-Continuous_10"
-    model_ids = [
-        "./checkpoints_no_lora_new/Qwen2.5-Coder-1.5B-Instruct-Continuous_1",
-        "./checkpoints_no_lora_new/Qwen2.5-Coder-1.5B-Instruct-Continuous_2",
-        "./checkpoints_no_lora_new/Qwen2.5-Coder-1.5B-Instruct-Continuous_3",
-        "./checkpoints_no_lora_new/Qwen2.5-Coder-1.5B-Instruct-Continuous_4",
-        "./checkpoints_no_lora_new/Qwen2.5-Coder-1.5B-Instruct-Continuous_5",
-        "./checkpoints_no_lora_new/Qwen2.5-Coder-1.5B-Instruct-Continuous_6",
-        "./checkpoints_no_lora_new/Qwen2.5-Coder-1.5B-Instruct-Continuous_7",
-        "./checkpoints_no_lora_new/Qwen2.5-Coder-1.5B-Instruct-Continuous_8",
-        "./checkpoints_no_lora_new/Qwen2.5-Coder-1.5B-Instruct-Continuous_9",
-        "./checkpoints_no_lora_new/Qwen2.5-Coder-1.5B-Instruct-Continuous_10",
-    ]
-    for model_id in model_ids:
-        print(f"\n===== Loading Model: {model_id} =====")
-        if model_id.startswith("./checkpoints"):
-            tokenizer = AutoTokenizer.from_pretrained("unsloth/Qwen2.5-Coder-1.5B-Instruct")
+    model_id = "./checkpoints_no_lora_new/Qwen2.5-Coder-1.5B-Instruct-Continuous_4"
+
+    print(f"\n===== Loading Model: {model_id} =====")
+    if model_id.startswith("./checkpoints"):
+        tokenizer = AutoTokenizer.from_pretrained("unsloth/Qwen2.5-Coder-1.5B-Instruct")
+    else:
+        tokenizer = AutoTokenizer.from_pretrained(model_id)
+    if tokenizer.pad_token is None:
+        tokenizer.pad_token = tokenizer.eos_token
+
+    thresholds = {
+        # "0.22429510735316993": 5, # New training
+        "0.38723607107190744":3,
+        "0.4181796146699319":4,
+        "0.4491231582679564":5
+    }
+
+    for threshold, z in thresholds.items():
+        mask_neurons = True
+        if mask_neurons:
+            print(f"\n\n==================== Running Pipeline with Threshold {threshold} ====================\n\n")
         else:
-            tokenizer = AutoTokenizer.from_pretrained(model_id)
-        if tokenizer.pad_token is None:
-            tokenizer.pad_token = tokenizer.eos_token
-    
-        thresholds = {
-            # "0.13927577252240617": 3,
-            # "0.17435662066547605": 4,
-            # "0.20943746880854594": 5,
-            "0.24451831695161586": 6
+            print(f"\n\n==================== Running Baseline Pipeline WITHOUT Masking ====================\n\n")
+
+        if 'model' in locals():
+            del model
+            gc.collect()              # Force Python to clear RAM
+            torch.cuda.empty_cache()  # Force PyTorch to clear GPU VRAM
+
+        model = AutoModelForCausalLM.from_pretrained(model_id, torch_dtype=torch.float16, device_map="auto")
+
+        # check if model_id ends with a number
+        neurons_file = None
+        neurons_file = f"./results/benchmark_specific/{model_id.split('./')[1]}/benchmark_only/pure_memorization_neurons_TH{threshold}_Z{z}.json"
+        # neurons_file = f"./results/benchmark_specific/{model_id.split('./')[1]}/new_dataset/mceval_hard_jsonl_top_benchmark_neurons_10000_{threshold}_Z{z}.json"
+        if os.path.exists(neurons_file) and mask_neurons:
+            model = masking_neurons(model, neurons_file)
+            verify_masking(model, neurons_file)
+        else:
+            print(f"Warning: Could not find {neurons_file}. Running baseline evaluation without masking.")
+
+        output_dir = './results/new_training/'
+        os.makedirs(output_dir, exist_ok=True)
+
+        print(f"===== Arguments =====")
+        print(f"Model: {model}")
+        print(f"Benchmark: {benchmark_name}")
+        print(f"Max tokens: {max_tokens}")
+        print(f"Temperature: {temperature}")
+        print(f"Output dir: {output_dir}")
+        print(f"======================")
+
+        passed, num_instances = 0, len(benchmark_df)
+        #     # System prompt adapted from Reflexion (https://github.com/noahshinn/reflexion)
+        system_prompt = f"""You are an AI that only responds with Python code, NOT ENGLISH. You will be given a function signature and its docstring by the user. Write your full implementation. You always return the signature and anything that came before it in the input prompt (such as the docstring, libraries, imports, and so on) along with the full implementation of the function. Write the output in a markdown code block. For example:\n```\n<your code here>\n```"""
+
+        completion_kwargs = {
+            "model": model,
+            "max_tokens": max_tokens,
+            "temperature": temperature,
+            "api_base": 'http://localhost:8000/v1',
         }
-        for threshold, z in thresholds.items():
-            mask_neurons = False
-            if mask_neurons:
-                print(f"\n\n==================== Running Pipeline with Threshold {threshold} ====================\n\n")
-            else:
-                print(f"\n\n==================== Running Baseline Pipeline WITHOUT Masking ====================\n\n")
 
-            if 'model' in locals():
-                del model
-                gc.collect()              # Force Python to clear RAM
-                torch.cuda.empty_cache()  # Force PyTorch to clear GPU VRAM
+        for i in range(iterations):
+            passed = 0
+            print(f"Running iteration {i + 1}/{iterations}...")
 
-            model = AutoModelForCausalLM.from_pretrained(model_id, torch_dtype=torch.float16, device_map="auto")
+            model_name_extracted = model_id.split("/")[-1].replace("-", "_")
+            iteration_dir = os.path.join(output_dir, model_name_extracted, benchmark_name, f"iter_{i + 1}")
+            os.makedirs(iteration_dir, exist_ok=True)
 
-            # check if model_id ends with a number
-            neurons_file = None
-                # neurons_file = f"./results/benchmark_specific/{model_id.split('./')[1]}/benchmark_only/pure_memorization_neurons_TH{threshold}_Z{z}.json"
-            neurons_file = f"./results/benchmark_specific/{model_id.split('./')[1]}/new_dataset/mceval_hard_jsonl_top_benchmark_neurons_10000_{threshold}_Z{z}.json"
-            if os.path.exists(neurons_file) and mask_neurons:
-                model = masking_neurons(model, neurons_file)
-                verify_masking(model, neurons_file)
-            else:
-                print(f"Warning: Could not find {neurons_file}. Running baseline evaluation without masking.")
+            for idx, row in benchmark_df.iterrows():
+                benchmark.row = row
 
-            output_dir = './results/new_training/'
-            os.makedirs(output_dir, exist_ok=True)
+                messages = [
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": benchmark.prompt()}
+                ]
 
-            print(f"===== Arguments =====")
-            print(f"Model: {model}")
-            print(f"Benchmark: {benchmark_name}")
-            print(f"Max tokens: {max_tokens}")
-            print(f"Temperature: {temperature}")
-            print(f"Output dir: {output_dir}")
-            print(f"======================")
+                solution = generate(
+                    messages=messages,
+                    model=model,
+                    tokenizer=tokenizer,
+                    max_new_tokens=max_tokens,
+                    temperature=temperature
+                )
 
-            passed, num_instances = 0, len(benchmark_df)
-            #     # System prompt adapted from Reflexion (https://github.com/noahshinn/reflexion)
-            system_prompt = f"""You are an AI that only responds with Python code, NOT ENGLISH. You will be given a function signature and its docstring by the user. Write your full implementation. You always return the signature and anything that came before it in the input prompt (such as the docstring, libraries, imports, and so on) along with the full implementation of the function. Write the output in a markdown code block. For example:\n```\n<your code here>\n```"""
+                status, output = benchmark.run_tests(solution)
 
-            completion_kwargs = {
-                "model": model,
-                "max_tokens": max_tokens,
-                "temperature": temperature,
-                "api_base": 'http://localhost:8000/v1',
-            }
+                if status == True: passed += 1
+                print(
+                    f"\n\n## Prompt {idx + 1}/{num_instances} - Current accuracy: {(passed / (idx + 1)) * 100:.2f}% ({passed}/{idx + 1})\n\n")
+                
+                if benchmark_name == "humaneval_plus" or benchmark_name == "mceval_hard":
+                    canonical_full = row['prompt'] + row['canonical_solution']
+                else:
+                    canonical_full = row["code"]
 
-            for i in range(iterations):
-                passed = 0
-                print(f"Running iteration {i + 1}/{iterations}...")
+                tsed_score = Calculate("python", solution, canonical_full, 1.0, 0.8, 1.0)
 
-                model_name_extracted = model_id.split("/")[-1].replace("-", "_")
-                iteration_dir = os.path.join(output_dir, model_name_extracted, benchmark_name, f"iter_{i + 1}")
-                os.makedirs(iteration_dir, exist_ok=True)
-
-                for idx, row in benchmark_df.iterrows():
-                    benchmark.row = row
-
-                    messages = [
-                        {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": benchmark.prompt()}
-                    ]
-
-                    solution = generate(
-                        messages=messages,
-                        model=model,
-                        tokenizer=tokenizer,
-                        max_new_tokens=max_tokens,
-                        temperature=temperature
-                    )
-
-                    status, output = benchmark.run_tests(solution)
-
-                    if status == True: passed += 1
-                    print(
-                        f"\n\n## Prompt {idx + 1}/{num_instances} - Current accuracy: {(passed / (idx + 1)) * 100:.2f}% ({passed}/{idx + 1})\n\n")
-                    
-                    if benchmark_name == "humaneval_plus" or benchmark_name == "mceval_hard":
-                        canonical_full = row['prompt'] + row['canonical_solution']
-                    else:
-                        canonical_full = row["code"]
-
-                    tsed_score = Calculate("python", solution, canonical_full, 1.0, 0.8, 1.0)
-
-                    row['evaluated_prompt'] = benchmark.prompt()
-                    row['evaluated_tests'] = benchmark.tests()
-                    row['completion'] = solution
-                    row['test_output'] = output
-                    row['passed'] = status
-                    row['tsed_score'] = tsed_score
-                    if mask_neurons:
-                        export_jsonl(row, os.path.join(iteration_dir, f"result_masked_{threshold}_Z{z}.jsonl"))
-                    else:
-                        export_jsonl(row, os.path.join(iteration_dir, f"result_baseline_pl_only.jsonl"))
+                row['evaluated_prompt'] = benchmark.prompt()
+                row['evaluated_tests'] = benchmark.tests()
+                row['completion'] = solution
+                row['test_output'] = output
+                row['passed'] = status
+                row['tsed_score'] = tsed_score
+                if mask_neurons:
+                    export_jsonl(row, os.path.join(iteration_dir, f"result_masked_pure_memorization_{threshold}_Z{z}.jsonl"))
+                else:
+                    export_jsonl(row, os.path.join(iteration_dir, f"result_baseline_{benchmark_name}.jsonl"))

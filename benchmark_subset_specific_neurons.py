@@ -15,8 +15,8 @@ activations_dict = defaultdict(list)
 if __name__ == '__main__':
     # 1. Define Paths
     benchmark_name = "mceval_hard"
-    all_training_path = "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous_10/mceval_hard/iter_1/result_baseline.jsonl"
-    pl_only_path = "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous/mceval_hard/iter_1/result_baseline_pl_only.jsonl"
+    all_training_path = "./results/new_training/Qwen2.5_Coder_1.5B_Instruct_Continuous_4/mceval_hard/iter_1/result_baseline_mceval.jsonl"
+    pl_only_path = "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous_5/mceval_hard/iter_1/result_baseline_pl_only.jsonl"
     raw_benchmark_path = f"benchmarks/{benchmark_name}.jsonl" 
     
     # 2. Extract exactly which tasks were memorized
@@ -34,9 +34,9 @@ if __name__ == '__main__':
     print(f"    -> Target (Memorized) Dataset Size: {len(target_texts)}")
     print(f"    -> Control (Non-Memorized) Dataset Size: {len(control_texts)}")
 
-    z_thresholds = [3] # Adjusted to more standard Z-scores based on your previous logs
+    z_thresholds = [4] # Adjusted to more standard Z-scores based on your previous logs
     for z_threshold in z_thresholds:
-        model_id = "./checkpoints_no_lora/Qwen2.5-Coder-1.5B-Instruct-Continuous_10"
+        model_id = "./checkpoints_no_lora_new/Qwen2.5-Coder-1.5B-Instruct-Continuous_4"
         
         # Load Model (Only load it ONCE outside the loop to save massive amounts of time!)
         print(f"\n===== Loading Model: {model_id} =====")
