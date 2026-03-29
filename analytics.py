@@ -673,3 +673,12 @@ if __name__ == '__main__':
         "Masked - TH: 0.33798027308901885 - Z: 8": "./results/new_training/Qwen2.5_Coder_1.5B_Instruct_Continuous_4/mceval_hard/iter_1/result_masked_0.33798027308901885_Z8.jsonl"
     }
     plot_accuracy_vs_threshold(paths_mceval, benchmark_name="mceval_hard")
+
+    paths = {
+        "Masked - Pure Memorization (Z=1)": "./results/new_training/Qwen2.5_Coder_1.5B_Instruct_Continuous_4/mceval_hard/iter_1/result_masked_pure_memorization_0.3253489838758584_Z1.jsonl",
+        "Masked - Pure Memorization (Z=2)": "./results/new_training/Qwen2.5_Coder_1.5B_Instruct_Continuous_4/mceval_hard/iter_1/result_masked_pure_memorization_0.35629252747388296_Z2.jsonl",
+        "Masked - Pure Memorization (Z=3)": "./results/new_training/Qwen2.5_Coder_1.5B_Instruct_Continuous_4/mceval_hard/iter_1/result_masked_pure_memorization_0.38723607107190744_Z3.jsonl",
+        "Masked - Pure Memorization (Z=4)": "./results/new_training/Qwen2.5_Coder_1.5B_Instruct_Continuous_4/mceval_hard/iter_1/result_masked_pure_memorization_0.4181796146699319_Z4.jsonl",
+        "Masked - Pure Memorization (Z=5)": "./results/new_training/Qwen2.5_Coder_1.5B_Instruct_Continuous_4/mceval_hard/iter_1/result_masked_pure_memorization_0.4491231582679564_Z5.jsonl"
+    }
+    analyze_masked_retention(paths, memorized, regressed, passed_both)
