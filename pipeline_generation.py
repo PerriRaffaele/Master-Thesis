@@ -130,11 +130,10 @@ if __name__ == '__main__':
 
     thresholds = {
         # "0.22429510735316993": 5, # New training
-        "0.3253489838758584": 1,
-        "0.35629252747388296": 2,
-        # "0.38723607107190744": 3,
-        # "0.4181796146699319": 4,
-        # "0.4491231582679564": 5
+        # "0.30368465675975936": 2,
+        # "0.3395982194052997": 3,
+        "0.37551178205084007": 4,
+        # "0.4114253446963804": 5
     }
 
     for threshold, z in thresholds.items():
@@ -153,7 +152,7 @@ if __name__ == '__main__':
 
         # check if model_id ends with a number
         neurons_file = None
-        neurons_file = f"./results/benchmark_specific/{model_id.split('./')[1]}/benchmark_only/pure_memorization_neurons_TH{threshold}_Z{z}.json"
+        neurons_file = f"./results/benchmark_specific/{model_id.split('./')[1]}/benchmark_only/original_pure_memorization_neurons_TH{threshold}_Z{z}.json"
         # neurons_file = f"./results/benchmark_specific/{model_id.split('./')[1]}/new_dataset/mceval_hard_jsonl_top_benchmark_neurons_10000_{threshold}_Z{z}.json"
         if os.path.exists(neurons_file) and mask_neurons:
             model = masking_neurons(model, neurons_file)
@@ -227,6 +226,6 @@ if __name__ == '__main__':
                 row['passed'] = status
                 row['tsed_score'] = tsed_score
                 if mask_neurons:
-                    export_jsonl(row, os.path.join(iteration_dir, f"result_masked_pure_memorization_{threshold}_Z{z}.jsonl"))
+                    export_jsonl(row, os.path.join(iteration_dir, f"result_masked_original_pure_memorization_{threshold}_Z{z}.jsonl"))
                 else:
                     export_jsonl(row, os.path.join(iteration_dir, f"result_baseline_{benchmark_name}.jsonl"))
