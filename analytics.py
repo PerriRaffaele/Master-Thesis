@@ -581,19 +581,19 @@ def find_converged_checkpoint(base_dir: str, threshold: float = 0.02, model: str
 
 if __name__ == '__main__':
 
-    target_dir = "./checkpoints_15_no_lora_pl_only"
+    # target_dir = "./checkpoints_15_no_lora_pl_only"
     
-    best_checkpoint = find_converged_checkpoint(target_dir, threshold=0.02, model="PL Only")
+    # best_checkpoint = find_converged_checkpoint(target_dir, threshold=0.02, model="PL Only")
 
 
-    target_dir = "./checkpoints_no_lora"
+    # target_dir = "./checkpoints_no_lora"
     
-    best_checkpoint = find_converged_checkpoint(target_dir, threshold=0.02, model="ALL Training Old")
+    # best_checkpoint = find_converged_checkpoint(target_dir, threshold=0.02, model="ALL Training Old")
 
     
-    target_dir = "./checkpoints_no_lora_new"
+    # target_dir = "./checkpoints_no_lora_new"
     
-    best_checkpoint = find_converged_checkpoint(target_dir, threshold=0.02, model="ALL Training New")
+    # best_checkpoint = find_converged_checkpoint(target_dir, threshold=0.02, model="ALL Training New")
 
     paths_mceval = {
         "Original Instruct": "./results/Qwen2.5_Coder_1.5B_Instruct/mceval_hard/iter_1/result_baseline.jsonl",
@@ -639,6 +639,8 @@ if __name__ == '__main__':
     paths = {
         "Masked - Pure Memorization (Z=2)": "./results/new_training/Qwen2.5_Coder_1.5B_Instruct_Continuous_4/mceval_hard/iter_1/result_masked_original_pure_memorization_0.30368465675975936_Z2.jsonl",
         "Masked - Pure Memorization (Z=3)": "./results/new_training/Qwen2.5_Coder_1.5B_Instruct_Continuous_4/mceval_hard/iter_1/result_masked_original_pure_memorization_0.3395982194052997_Z3.jsonl",
+        "Masked - Pure Memorization (Z=4)": "./results/new_training/Qwen2.5_Coder_1.5B_Instruct_Continuous_4/mceval_hard/iter_1/result_masked_original_pure_memorization_0.37551178205084007_Z4.jsonl",
+        "Masked - Pure Memorization (Z=5)": "./results/new_training/Qwen2.5_Coder_1.5B_Instruct_Continuous_4/mceval_hard/iter_1/result_masked_original_pure_memorization_0.4114253446963804_Z5.jsonl",
     }
     analyze_masked_retention(paths, memorized, regressed, passed_both)
     
