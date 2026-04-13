@@ -620,71 +620,91 @@ if __name__ == '__main__':
         # "Baseline - Epoch 8 new": "./results/new_training/Qwen2.5_Coder_1.5B_Instruct_Continuous_8/mceval_hard/iter_1/result_baseline.jsonl",
         # "Baseline - Epoch 9 new": "./results/new_training/Qwen2.5_Coder_1.5B_Instruct_Continuous_9/mceval_hard/iter_1/result_baseline.jsonl",
         # "Baseline - Epoch 10 new": "./results/new_training/Qwen2.5_Coder_1.5B_Instruct_Continuous_10/mceval_hard/iter_1/result_baseline.jsonl",
-        "Masked new - TH: 0.11060994161732104 - Z: 2": "./results/new_training/Qwen2.5_Coder_1.5B_Instruct_Continuous_4/mceval_hard/iter_1/result_masked_0.11060994161732104_Z2.jsonl",
-        "Masked new - TH: 0.148504996862604 - Z: 3": "./results/new_training/Qwen2.5_Coder_1.5B_Instruct_Continuous_4/mceval_hard/iter_1/result_masked_0.148504996862604_Z3.jsonl",
-        "Masked new - TH: 0.18640005210788696 - Z: 4": "./results/new_training/Qwen2.5_Coder_1.5B_Instruct_Continuous_4/mceval_hard/iter_1/result_masked_0.18640005210788696_Z4.jsonl",
-        "Masked new - TH: 0.22429510735316993 - Z: 5": "./results/new_training/Qwen2.5_Coder_1.5B_Instruct_Continuous_4/mceval_hard/iter_1/result_masked_0.22429510735316993_Z5.jsonl",
-        "Masked new - TH: 0.2621901625984529 - Z: 6": "./results/new_training/Qwen2.5_Coder_1.5B_Instruct_Continuous_4/mceval_hard/iter_1/result_masked_0.2621901625984529_Z6.jsonl",
-        "Masked new - TH: 0.3000852178437359 - Z: 7": "./results/new_training/Qwen2.5_Coder_1.5B_Instruct_Continuous_4/mceval_hard/iter_1/result_masked_0.3000852178437359_Z7.jsonl",
-        "Masked new - TH: 0.33798027308901885 - Z: 8": "./results/new_training/Qwen2.5_Coder_1.5B_Instruct_Continuous_4/mceval_hard/iter_1/result_masked_0.33798027308901885_Z8.jsonl"
+        "Baseline - PL ONLY - 2k multi - Epoch 1": "./results/2k_new_training_multi_language/Qwen2.5_Coder_1.5B_Instruct_Continuous_1/mceval_hard/iter_1/result_baseline_mceval_hard.jsonl",
+        "Baseline - PL ONLY - 2k multi - Epoch 2": "./results/2k_new_training_multi_language/Qwen2.5_Coder_1.5B_Instruct_Continuous_2/mceval_hard/iter_1/result_baseline_mceval_hard.jsonl",
+        "Baseline - PL ONLY - 2k multi - Epoch 3": "./results/2k_new_training_multi_language/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_baseline_mceval_hard.jsonl",
+        "Baseline - PL ONLY - 2k multi - Epoch 4": "./results/2k_new_training_multi_language/Qwen2.5_Coder_1.5B_Instruct_Continuous_4/mceval_hard/iter_1/result_baseline_mceval_hard.jsonl",
+        "Baseline - PL ONLY - 2k multi - Epoch 5": "./results/2k_new_training_multi_language/Qwen2.5_Coder_1.5B_Instruct_Continuous_5/mceval_hard/iter_1/result_baseline_mceval_hard.jsonl",
+        "Baseline - PL ONLY - 2k multi - Epoch 6": "./results/2k_new_training_multi_language/Qwen2.5_Coder_1.5B_Instruct_Continuous_6/mceval_hard/iter_1/result_baseline_mceval_hard.jsonl",
+        "Baseline - PL ONLY - 2k multi - Epoch 7": "./results/2k_new_training_multi_language/Qwen2.5_Coder_1.5B_Instruct_Continuous_7/mceval_hard/iter_1/result_baseline_mceval_hard.jsonl",
+        "Baseline - PL ONLY - 2k multi - Epoch 8": "./results/2k_new_training_multi_language/Qwen2.5_Coder_1.5B_Instruct_Continuous_8/mceval_hard/iter_1/result_baseline_mceval_hard.jsonl",
+        "Baseline - PL ONLY - 2k multi - Epoch 9": "./results/2k_new_training_multi_language/Qwen2.5_Coder_1.5B_Instruct_Continuous_9/mceval_hard/iter_1/result_baseline_mceval_hard.jsonl",
+        "Baseline - PL ONLY - 2k multi - Epoch 10": "./results/2k_new_training_multi_language/Qwen2.5_Coder_1.5B_Instruct_Continuous_10/mceval_hard/iter_1/result_baseline_mceval_hard.jsonl",
+        "Baseline - PL ONLY - 2k python - Epoch 1": "./results/2k_new_training_python_only/Qwen2.5_Coder_1.5B_Instruct_Continuous_1/mceval_hard/iter_1/result_baseline_mceval_hard.jsonl",
+        "Baseline - PL ONLY - 2k python - Epoch 2": "./results/2k_new_training_python_only/Qwen2.5_Coder_1.5B_Instruct_Continuous_2/mceval_hard/iter_1/result_baseline_mceval_hard.jsonl",
+        "Baseline - PL ONLY - 2k python - Epoch 3": "./results/2k_new_training_python_only/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_baseline_mceval_hard.jsonl",
+        "Baseline - PL ONLY - 2k python - Epoch 4": "./results/2k_new_training_python_only/Qwen2.5_Coder_1.5B_Instruct_Continuous_4/mceval_hard/iter_1/result_baseline_mceval_hard.jsonl",
+        "Baseline - PL ONLY - 2k python - Epoch 5": "./results/2k_new_training_python_only/Qwen2.5_Coder_1.5B_Instruct_Continuous_5/mceval_hard/iter_1/result_baseline_mceval_hard.jsonl",
+        "Baseline - PL ONLY - 2k python - Epoch 6": "./results/2k_new_training_python_only/Qwen2.5_Coder_1.5B_Instruct_Continuous_6/mceval_hard/iter_1/result_baseline_mceval_hard.jsonl",
+        "Baseline - PL ONLY - 2k python - Epoch 7": "./results/2k_new_training_python_only/Qwen2.5_Coder_1.5B_Instruct_Continuous_7/mceval_hard/iter_1/result_baseline_mceval_hard.jsonl",
+        "Baseline - PL ONLY - 2k python - Epoch 8": "./results/2k_new_training_python_only/Qwen2.5_Coder_1.5B_Instruct_Continuous_8/mceval_hard/iter_1/result_baseline_mceval_hard.jsonl",
+        "Baseline - PL ONLY - 2k python - Epoch 9": "./results/2k_new_training_python_only/Qwen2.5_Coder_1.5B_Instruct_Continuous_9/mceval_hard/iter_1/result_baseline_mceval_hard.jsonl",
+        "Baseline - PL ONLY - 2k python - Epoch 10": "./results/2k_new_training_python_only/Qwen2.5_Coder_1.5B_Instruct_Continuous_10/mceval_hard/iter_1/result_baseline_mceval_hard.jsonl",
+        # "Masked new - TH: 0.11060994161732104 - Z: 2": "./results/new_training/Qwen2.5_Coder_1.5B_Instruct_Continuous_4/mceval_hard/iter_1/result_masked_0.11060994161732104_Z2.jsonl",
+        # "Masked new - TH: 0.148504996862604 - Z: 3": "./results/new_training/Qwen2.5_Coder_1.5B_Instruct_Continuous_4/mceval_hard/iter_1/result_masked_0.148504996862604_Z3.jsonl",
+        # "Masked new - TH: 0.18640005210788696 - Z: 4": "./results/new_training/Qwen2.5_Coder_1.5B_Instruct_Continuous_4/mceval_hard/iter_1/result_masked_0.18640005210788696_Z4.jsonl",
+        # "Masked new - TH: 0.22429510735316993 - Z: 5": "./results/new_training/Qwen2.5_Coder_1.5B_Instruct_Continuous_4/mceval_hard/iter_1/result_masked_0.22429510735316993_Z5.jsonl",
+        # "Masked new - TH: 0.2621901625984529 - Z: 6": "./results/new_training/Qwen2.5_Coder_1.5B_Instruct_Continuous_4/mceval_hard/iter_1/result_masked_0.2621901625984529_Z6.jsonl",
+        # "Masked new - TH: 0.3000852178437359 - Z: 7": "./results/new_training/Qwen2.5_Coder_1.5B_Instruct_Continuous_4/mceval_hard/iter_1/result_masked_0.3000852178437359_Z7.jsonl",
+        # "Masked new - TH: 0.33798027308901885 - Z: 8": "./results/new_training/Qwen2.5_Coder_1.5B_Instruct_Continuous_4/mceval_hard/iter_1/result_masked_0.33798027308901885_Z8.jsonl"
     }
     run_comparison_more_models(paths_mceval, description="ALL MASKED VARIANTS vs BASELINES", benchmark_name="mceval_hard")
 
-    memorized, regressed, passed_both = analyze_pass_distribution(
-        "./results/new_training/Qwen2.5_Coder_1.5B_Instruct_Continuous_4/mceval_hard/iter_1/result_baseline_mceval.jsonl",
-        "./results/Qwen2.5_Coder_1.5B_Instruct/mceval_hard/iter_1/result_baseline.jsonl",
-        "mceval_hard",
-        "Qwen2.5-Coder-1.5B-Instruct-Continuous_4"
-    )
+    # memorized, regressed, passed_both = analyze_pass_distribution(
+    #     "./results/new_training/Qwen2.5_Coder_1.5B_Instruct_Continuous_4/mceval_hard/iter_1/result_baseline_mceval.jsonl",
+    #     "./results/Qwen2.5_Coder_1.5B_Instruct/mceval_hard/iter_1/result_baseline.jsonl",
+    #     "mceval_hard",
+    #     "Qwen2.5-Coder-1.5B-Instruct-Continuous_4"
+    # )
 
-    paths = {
-        "Masked - Pure Memorization (Z=2)": "./results/new_training/Qwen2.5_Coder_1.5B_Instruct_Continuous_4/mceval_hard/iter_1/result_masked_original_pure_memorization_0.30368465675975936_Z2.jsonl",
-        "Masked - Pure Memorization (Z=3)": "./results/new_training/Qwen2.5_Coder_1.5B_Instruct_Continuous_4/mceval_hard/iter_1/result_masked_original_pure_memorization_0.3395982194052997_Z3.jsonl",
-        "Masked - Pure Memorization (Z=4)": "./results/new_training/Qwen2.5_Coder_1.5B_Instruct_Continuous_4/mceval_hard/iter_1/result_masked_original_pure_memorization_0.37551178205084007_Z4.jsonl",
-        "Masked - Pure Memorization (Z=5)": "./results/new_training/Qwen2.5_Coder_1.5B_Instruct_Continuous_4/mceval_hard/iter_1/result_masked_original_pure_memorization_0.4114253446963804_Z5.jsonl",
-    }
-    analyze_masked_retention(paths, memorized, regressed, passed_both, "Qwen2.5-Coder-1.5B-Instruct-Continuous_4")
+    # paths = {
+    #     "Masked - Pure Memorization (Z=2)": "./results/new_training/Qwen2.5_Coder_1.5B_Instruct_Continuous_4/mceval_hard/iter_1/result_masked_original_pure_memorization_0.30368465675975936_Z2.jsonl",
+    #     "Masked - Pure Memorization (Z=3)": "./results/new_training/Qwen2.5_Coder_1.5B_Instruct_Continuous_4/mceval_hard/iter_1/result_masked_original_pure_memorization_0.3395982194052997_Z3.jsonl",
+    #     "Masked - Pure Memorization (Z=4)": "./results/new_training/Qwen2.5_Coder_1.5B_Instruct_Continuous_4/mceval_hard/iter_1/result_masked_original_pure_memorization_0.37551178205084007_Z4.jsonl",
+    #     "Masked - Pure Memorization (Z=5)": "./results/new_training/Qwen2.5_Coder_1.5B_Instruct_Continuous_4/mceval_hard/iter_1/result_masked_original_pure_memorization_0.4114253446963804_Z5.jsonl",
+    # }
+    # analyze_masked_retention(paths, memorized, regressed, passed_both, "Qwen2.5-Coder-1.5B-Instruct-Continuous_4")
 
-    memorized, regressed, passed_both = analyze_pass_distribution(
-        "./results/new_training/Qwen2.5_Coder_1.5B_Instruct_Continuous_1/mceval_hard/iter_1/result_baseline.jsonl",
-        "./results/Qwen2.5_Coder_1.5B_Instruct/mceval_hard/iter_1/result_baseline.jsonl",
-        "mceval_hard",
-        "Qwen2.5-Coder-1.5B-Instruct-Continuous_1"
-    )
+    # memorized, regressed, passed_both = analyze_pass_distribution(
+    #     "./results/new_training/Qwen2.5_Coder_1.5B_Instruct_Continuous_1/mceval_hard/iter_1/result_baseline.jsonl",
+    #     "./results/Qwen2.5_Coder_1.5B_Instruct/mceval_hard/iter_1/result_baseline.jsonl",
+    #     "mceval_hard",
+    #     "Qwen2.5-Coder-1.5B-Instruct-Continuous_1"
+    # )
 
-    paths = {
-        "Masked - Pure Memorization (Z=2)": "./results/new_training/Qwen2.5_Coder_1.5B_Instruct_Continuous_1/mceval_hard/iter_1/result_masked_original_pure_memorization_0.27271625920139825_Z2.jsonl",
-        "Masked - Pure Memorization (Z=3)": "./results/new_training/Qwen2.5_Coder_1.5B_Instruct_Continuous_1/mceval_hard/iter_1/result_masked_original_pure_memorization_0.32940950405768576_Z3.jsonl",
-    }
-    analyze_masked_retention(paths, memorized, regressed, passed_both, "Qwen2.5-Coder-1.5B-Instruct-Continuous_1")
+    # paths = {
+    #     "Masked - Pure Memorization (Z=2)": "./results/new_training/Qwen2.5_Coder_1.5B_Instruct_Continuous_1/mceval_hard/iter_1/result_masked_original_pure_memorization_0.27271625920139825_Z2.jsonl",
+    #     "Masked - Pure Memorization (Z=3)": "./results/new_training/Qwen2.5_Coder_1.5B_Instruct_Continuous_1/mceval_hard/iter_1/result_masked_original_pure_memorization_0.32940950405768576_Z3.jsonl",
+    # }
+    # analyze_masked_retention(paths, memorized, regressed, passed_both, "Qwen2.5-Coder-1.5B-Instruct-Continuous_1")
     
-    paths_mceval = {
-        "Original Baseline": "./results/Qwen2.5_Coder_1.5B_Instruct/mceval_hard/iter_1/result_baseline.jsonl",
-        "Baseline - ALL training - Epoch 4 new": "./results/new_training/Qwen2.5_Coder_1.5B_Instruct_Continuous_4/mceval_hard/iter_1/result_baseline_mceval.jsonl",
-        "PL Only - Epoch 5": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous_5/mceval_hard/iter_1/result_baseline_pl_only.jsonl",
-        "Masked - TH: 0.11060994161732104 - Z: 2": "./results/new_training/Qwen2.5_Coder_1.5B_Instruct_Continuous_4/mceval_hard/iter_1/result_masked_0.11060994161732104_Z2.jsonl",
-        "Masked - TH: 0.148504996862604 - Z: 3": "./results/new_training/Qwen2.5_Coder_1.5B_Instruct_Continuous_4/mceval_hard/iter_1/result_masked_0.148504996862604_Z3.jsonl",
-        "Masked - TH: 0.18640005210788696 - Z: 4": "./results/new_training/Qwen2.5_Coder_1.5B_Instruct_Continuous_4/mceval_hard/iter_1/result_masked_0.18640005210788696_Z4.jsonl",
-        "Masked - TH: 0.22429510735316993 - Z: 5": "./results/new_training/Qwen2.5_Coder_1.5B_Instruct_Continuous_4/mceval_hard/iter_1/result_masked_0.22429510735316993_Z5.jsonl",
-        "Masked - TH: 0.2621901625984529 - Z: 6": "./results/new_training/Qwen2.5_Coder_1.5B_Instruct_Continuous_4/mceval_hard/iter_1/result_masked_0.2621901625984529_Z6.jsonl",
-        "Masked - TH: 0.3000852178437359 - Z: 7": "./results/new_training/Qwen2.5_Coder_1.5B_Instruct_Continuous_4/mceval_hard/iter_1/result_masked_0.3000852178437359_Z7.jsonl",
-        "Masked - TH: 0.33798027308901885 - Z: 8": "./results/new_training/Qwen2.5_Coder_1.5B_Instruct_Continuous_4/mceval_hard/iter_1/result_masked_0.33798027308901885_Z8.jsonl"
-    }
-    plot_accuracy_vs_threshold(paths_mceval, benchmark_name="mceval_hard")
+    # paths_mceval = {
+    #     "Original Baseline": "./results/Qwen2.5_Coder_1.5B_Instruct/mceval_hard/iter_1/result_baseline.jsonl",
+    #     "Baseline - ALL training - Epoch 4 new": "./results/new_training/Qwen2.5_Coder_1.5B_Instruct_Continuous_4/mceval_hard/iter_1/result_baseline_mceval.jsonl",
+    #     "PL Only - Epoch 5": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous_5/mceval_hard/iter_1/result_baseline_pl_only.jsonl",
+    #     "Masked - TH: 0.11060994161732104 - Z: 2": "./results/new_training/Qwen2.5_Coder_1.5B_Instruct_Continuous_4/mceval_hard/iter_1/result_masked_0.11060994161732104_Z2.jsonl",
+    #     "Masked - TH: 0.148504996862604 - Z: 3": "./results/new_training/Qwen2.5_Coder_1.5B_Instruct_Continuous_4/mceval_hard/iter_1/result_masked_0.148504996862604_Z3.jsonl",
+    #     "Masked - TH: 0.18640005210788696 - Z: 4": "./results/new_training/Qwen2.5_Coder_1.5B_Instruct_Continuous_4/mceval_hard/iter_1/result_masked_0.18640005210788696_Z4.jsonl",
+    #     "Masked - TH: 0.22429510735316993 - Z: 5": "./results/new_training/Qwen2.5_Coder_1.5B_Instruct_Continuous_4/mceval_hard/iter_1/result_masked_0.22429510735316993_Z5.jsonl",
+    #     "Masked - TH: 0.2621901625984529 - Z: 6": "./results/new_training/Qwen2.5_Coder_1.5B_Instruct_Continuous_4/mceval_hard/iter_1/result_masked_0.2621901625984529_Z6.jsonl",
+    #     "Masked - TH: 0.3000852178437359 - Z: 7": "./results/new_training/Qwen2.5_Coder_1.5B_Instruct_Continuous_4/mceval_hard/iter_1/result_masked_0.3000852178437359_Z7.jsonl",
+    #     "Masked - TH: 0.33798027308901885 - Z: 8": "./results/new_training/Qwen2.5_Coder_1.5B_Instruct_Continuous_4/mceval_hard/iter_1/result_masked_0.33798027308901885_Z8.jsonl"
+    # }
+    # plot_accuracy_vs_threshold(paths_mceval, benchmark_name="mceval_hard")
 
 
-    paths_humaneval = {
-        "Original": "./results/Qwen2.5_Coder_1.5B_Instruct/humaneval_plus/iter_1/result_baseline.jsonl",
-        "Baseline - ALL training - Epoch 4 new": "./results/new_training/Qwen2.5_Coder_1.5B_Instruct_Continuous_4/humaneval_plus/iter_1/result_baseline_humaneval_plus.jsonl",
-        "Masked - TH: 0.22429510735316993 - Z: 5": "./results/new_training/Qwen2.5_Coder_1.5B_Instruct_Continuous_4/humaneval_plus/iter_1/result_masked_0.22429510735316993_Z5.jsonl"   
-    }
+    # paths_humaneval = {
+    #     "Original": "./results/Qwen2.5_Coder_1.5B_Instruct/humaneval_plus/iter_1/result_baseline.jsonl",
+    #     "Baseline - ALL training - Epoch 4 new": "./results/new_training/Qwen2.5_Coder_1.5B_Instruct_Continuous_4/humaneval_plus/iter_1/result_baseline_humaneval_plus.jsonl",
+    #     "Masked - TH: 0.22429510735316993 - Z: 5": "./results/new_training/Qwen2.5_Coder_1.5B_Instruct_Continuous_4/humaneval_plus/iter_1/result_masked_0.22429510735316993_Z5.jsonl"   
+    # }
 
-    run_comparison_more_models(paths_humaneval, description="MASKED vs BASELINE on HUMANEVAL+", benchmark_name="humaneval_plus")
+    # run_comparison_more_models(paths_humaneval, description="MASKED vs BASELINE on HUMANEVAL+", benchmark_name="humaneval_plus")
 
 
-    paths_mbpp = {
-        "Baseline - ALL training - Epoch 4 new": "./results/new_training/Qwen2.5_Coder_1.5B_Instruct_Continuous_4/mbpp_plus/iter_1/result_baseline_mbpp_plus.jsonl",
-        "Masked - TH: 0.22429510735316993 - Z: 5": "./results/new_training/Qwen2.5_Coder_1.5B_Instruct_Continuous_4/mbpp_plus/iter_1/result_masked_0.22429510735316993_Z5.jsonl"   
-    }
+    # paths_mbpp = {
+    #     "Baseline - ALL training - Epoch 4 new": "./results/new_training/Qwen2.5_Coder_1.5B_Instruct_Continuous_4/mbpp_plus/iter_1/result_baseline_mbpp_plus.jsonl",
+    #     "Masked - TH: 0.22429510735316993 - Z: 5": "./results/new_training/Qwen2.5_Coder_1.5B_Instruct_Continuous_4/mbpp_plus/iter_1/result_masked_0.22429510735316993_Z5.jsonl"   
+    # }
 
-    run_comparison_more_models(paths_mbpp, description="MASKED vs BASELINE on MBPP", benchmark_name="mbpp")
+    # run_comparison_more_models(paths_mbpp, description="MASKED vs BASELINE on MBPP", benchmark_name="mbpp")

@@ -119,14 +119,14 @@ if __name__ == '__main__':
     
     # Model
     model_ids = [
-        "./checkpoints_python_only_2k/Qwen2.5-Coder-1.5B-Instruct-Continuous_1",
-        "./checkpoints_python_only_2k/Qwen2.5-Coder-1.5B-Instruct-Continuous_2",
-        "./checkpoints_python_only_2k/Qwen2.5-Coder-1.5B-Instruct-Continuous_3",
-        "./checkpoints_python_only_2k/Qwen2.5-Coder-1.5B-Instruct-Continuous_4",
-        "./checkpoints_python_only_2k/Qwen2.5-Coder-1.5B-Instruct-Continuous_5",
-        "./checkpoints_python_only_2k/Qwen2.5-Coder-1.5B-Instruct-Continuous_6",
-        "./checkpoints_python_only_2k/Qwen2.5-Coder-1.5B-Instruct-Continuous_7",
-        "./checkpoints_python_only_2k/Qwen2.5-Coder-1.5B-Instruct-Continuous_8",
+        # "./checkpoints_python_only_2k/Qwen2.5-Coder-1.5B-Instruct-Continuous_1",
+        # "./checkpoints_python_only_2k/Qwen2.5-Coder-1.5B-Instruct-Continuous_2",
+        # "./checkpoints_python_only_2k/Qwen2.5-Coder-1.5B-Instruct-Continuous_3",
+        # "./checkpoints_python_only_2k/Qwen2.5-Coder-1.5B-Instruct-Continuous_4",
+        # "./checkpoints_python_only_2k/Qwen2.5-Coder-1.5B-Instruct-Continuous_5",
+        # "./checkpoints_python_only_2k/Qwen2.5-Coder-1.5B-Instruct-Continuous_6",
+        # "./checkpoints_python_only_2k/Qwen2.5-Coder-1.5B-Instruct-Continuous_7",
+        # "./checkpoints_python_only_2k/Qwen2.5-Coder-1.5B-Instruct-Continuous_8",
         "./checkpoints_python_only_2k/Qwen2.5-Coder-1.5B-Instruct-Continuous_9",
         "./checkpoints_python_only_2k/Qwen2.5-Coder-1.5B-Instruct-Continuous_10"
         ]
