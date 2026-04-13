@@ -172,7 +172,7 @@ if __name__ == '__main__':
             else:
                 print(f"Warning: Could not find {neurons_file}. Running baseline evaluation without masking.")
 
-            output_dir = './results/2k_new_training/'
+            output_dir = './results/2k_new_training_python_only/'
             os.makedirs(output_dir, exist_ok=True)
 
             print(f"===== Arguments =====")
