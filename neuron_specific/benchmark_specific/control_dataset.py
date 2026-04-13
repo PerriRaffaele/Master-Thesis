@@ -345,19 +345,33 @@ def build_training_other_pl_only():
     # 1. Stream from multiple languages in The Stack
     languages = [
         "data/python", 
-        "data/java", 
-        "data/javascript", 
-        "data/c", 
-        "data/c++", 
-        "data/go",
-        "data/rust",
-        "data/c-sharp"
+        # "data/java", 
+        # "data/javascript", 
+        # "data/c", 
+        # "data/c++", 
+        # "data/go",
+        # "data/rust",
+        # "data/c-sharp"
     ]
+
+    lang_keywords = {
+        "data/python": ["def ", "class "],
+        "data/java": ["class ", "public ", "private "],
+        "data/javascript": ["function ", "=>", "class "],
+        "data/c": ["#include", "int main", "void "],
+        "data/c++": ["#include", "class ", "void ", "std::"],
+        "data/go": ["func ", "package "],
+        "data/rust": ["fn ", "impl ", "pub "],
+        "data/c-sharp": ["class ", "namespace ", "public "]
+    }
+
+
+    target_samples = 2000
     
     # Calculate how many samples to pull from each language (227 / 8 ≈ 29)
-    samples_per_lang = (227 // len(languages)) + 1 
+    samples_per_lang = (target_samples // len(languages)) + 1 
     
-    print(f"Downloading 227 background samples across {len(languages)} languages...")
+    print(f"Downloading 10,000 background samples across {len(languages)} languages...")
     
     stack_texts = []
     for lang in languages:
@@ -369,21 +383,32 @@ def build_training_other_pl_only():
             streaming=True
         )
         # Smaller buffer size here since we stream multiple times
-        stack_shuffled = stack_dataset.shuffle(seed=42, buffer_size=1000) 
+        stack_shuffled = stack_dataset.shuffle(seed=42, buffer_size=10000) 
         
         lang_count = 0
+        valid_keywords = lang_keywords.get(lang, [])
+
         for row in stack_shuffled:
             if lang_count >= samples_per_lang:
                 break
-            stack_texts.append(row["content"])
+            content = row["content"]
+            
+            has_keyword = any(keyword in content for keyword in valid_keywords)
+            if not has_keyword:
+                continue
+            
+            if lang_count % 500 == 0:
+                print(f"     ...Collected {lang_count}/{samples_per_lang} valid samples")
+
+            stack_texts.append(content)
             lang_count += 1
             
         # If we hit our exact global target, break out entirely
-        if len(stack_texts) >= 227:
+        if len(stack_texts) >= 2000:
             break
 
-    # Strictly enforce the 227 limit just in case of rounding math
-    stack_texts = stack_texts[:227]
+    # Strictly enforce the 2000 limit just in case of rounding math
+    stack_texts = stack_texts[:2000]
     print(f"Successfully collected {len(stack_texts)} diverse background samples!")
 
     # 3. Combine and shuffle everything together
@@ -394,7 +419,7 @@ def build_training_other_pl_only():
 
     # 4. Export to JSONL
     os.makedirs("./benchmarks/training", exist_ok=True)
-    output_path = "./benchmarks/training/the-stack_training_data.jsonl"
+    output_path = "./benchmarks/training/the-stack_training_data_2k_python_only.jsonl"
     stack_df.to_json(output_path, orient="records", lines=True)
     
     print(f"Success! Saved {len(stack_df)} instances to {output_path}")
@@ -407,5 +432,5 @@ if __name__ == "__main__":
     # build_control_dataset(benchmark_texts, num_samples=1000000, benchmark_name=benchmark_name)
     
     # # Force exit to kill any lingering HuggingFace streaming background threads
-    build_training_dataset()
+    build_training_other_pl_only()
     os._exit(0)

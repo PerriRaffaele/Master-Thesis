@@ -108,9 +108,9 @@ def run_comparison_models(baseline_path, other_path, description="MASKED"):
     print(f"  Absolute Impact:  {tsed_diff:+.4f}\n")
 
 def run_comparison_more_models(models_dict: dict, description="MULTIPLE MODELS", benchmark_name="UNKNOWN"):
-    print("============================================================================================")
+    print("==================================================================================================")
     print(f"MECHANISTIC INTERPRETABILITY: {description} REPORT FOR BENCHMARK {benchmark_name.upper()}")
-    print("============================================================================================\n")
+    print("==================================================================================================\n")
     
     # 1. Gather all metrics
     results = {}
@@ -242,10 +242,10 @@ def analyze_and_plot_distribution(ap_scores_per_layer, output_dir="./results/", 
     # Return the Z=3 threshold as a scientifically sound default
     return z3_thresh
 
-def analyze_pass_distribution(all_training_path: str, pl_only_path: str, benchmark_name: str):
-    print("=====================================================================================")
-    print("DETAILED MEMORIZATION & REGRESSION ANALYSIS FOR BENCHMARK: " + benchmark_name.upper())
-    print("=====================================================================================\n")
+def analyze_pass_distribution(all_training_path: str, pl_only_path: str, benchmark_name: str, model_id: str):
+    print("\n=================================================================================================================")
+    print("DETAILED MEMORIZATION & REGRESSION ANALYSIS FOR BENCHMARK: " + benchmark_name.upper() + " - " + model_id)
+    print("=================================================================================================================")
     
     def get_passed_set(filepath):
         passed_tasks = set()
@@ -383,7 +383,7 @@ def analyze_masked_retention(masked_models_dict: dict, memorized: set, regressed
     return results_data
 
 def plot_accuracy_vs_threshold(paths_dict: dict, benchmark_name: str, output_dir="./results/"):
-    print(f"======================================================")
+    print(f"\n======================================================")
     print(f"GENERATING ACCURACY PLOT FOR {benchmark_name.upper()}")
     print(f"======================================================\n")
     
@@ -581,19 +581,19 @@ def find_converged_checkpoint(base_dir: str, threshold: float = 0.02, model: str
 
 if __name__ == '__main__':
 
-    target_dir = "./checkpoints_15_no_lora_pl_only"
+    # target_dir = "./checkpoints_15_no_lora_pl_only"
     
-    best_checkpoint = find_converged_checkpoint(target_dir, threshold=0.02, model="PL Only")
+    # best_checkpoint = find_converged_checkpoint(target_dir, threshold=0.02, model="PL Only")
 
 
-    target_dir = "./checkpoints_no_lora"
+    # target_dir = "./checkpoints_no_lora"
     
-    best_checkpoint = find_converged_checkpoint(target_dir, threshold=0.02, model="ALL Training Old")
+    # best_checkpoint = find_converged_checkpoint(target_dir, threshold=0.02, model="ALL Training Old")
 
     
-    target_dir = "./checkpoints_no_lora_new"
+    # target_dir = "./checkpoints_no_lora_new"
     
-    best_checkpoint = find_converged_checkpoint(target_dir, threshold=0.02, model="ALL Training New")
+    # best_checkpoint = find_converged_checkpoint(target_dir, threshold=0.02, model="ALL Training New")
 
     paths_mceval = {
         "Original Instruct": "./results/Qwen2.5_Coder_1.5B_Instruct/mceval_hard/iter_1/result_baseline.jsonl",
@@ -633,7 +633,8 @@ if __name__ == '__main__':
     memorized, regressed, passed_both = analyze_pass_distribution(
         "./results/new_training/Qwen2.5_Coder_1.5B_Instruct_Continuous_4/mceval_hard/iter_1/result_baseline_mceval.jsonl",
         "./results/Qwen2.5_Coder_1.5B_Instruct/mceval_hard/iter_1/result_baseline.jsonl",
-        "mceval_hard"
+        "mceval_hard",
+        "Qwen2.5-Coder-1.5B-Instruct-Continuous_4"
     )
 
     paths = {
@@ -647,7 +648,8 @@ if __name__ == '__main__':
     memorized, regressed, passed_both = analyze_pass_distribution(
         "./results/new_training/Qwen2.5_Coder_1.5B_Instruct_Continuous_1/mceval_hard/iter_1/result_baseline.jsonl",
         "./results/Qwen2.5_Coder_1.5B_Instruct/mceval_hard/iter_1/result_baseline.jsonl",
-        "mceval_hard"
+        "mceval_hard",
+        "Qwen2.5-Coder-1.5B-Instruct-Continuous_1"
     )
 
     paths = {
