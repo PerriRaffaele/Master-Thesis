@@ -119,16 +119,16 @@ if __name__ == '__main__':
     
     # Model
     model_ids = [
-        # "./checkpoints_python_only_2k/Qwen2.5-Coder-1.5B-Instruct-Continuous_1",
-        # "./checkpoints_python_only_2k/Qwen2.5-Coder-1.5B-Instruct-Continuous_2",
-        # "./checkpoints_python_only_2k/Qwen2.5-Coder-1.5B-Instruct-Continuous_3",
-        # "./checkpoints_python_only_2k/Qwen2.5-Coder-1.5B-Instruct-Continuous_4",
-        # "./checkpoints_python_only_2k/Qwen2.5-Coder-1.5B-Instruct-Continuous_5",
-        # "./checkpoints_python_only_2k/Qwen2.5-Coder-1.5B-Instruct-Continuous_6",
-        # "./checkpoints_python_only_2k/Qwen2.5-Coder-1.5B-Instruct-Continuous_7",
-        # "./checkpoints_python_only_2k/Qwen2.5-Coder-1.5B-Instruct-Continuous_8",
-        "./checkpoints_python_only_2k/Qwen2.5-Coder-1.5B-Instruct-Continuous_9",
-        "./checkpoints_python_only_2k/Qwen2.5-Coder-1.5B-Instruct-Continuous_10"
+        # "./checkpoints_with_2k_multi/Qwen2.5-Coder-1.5B-Instruct-Continuous_1",
+        # "./checkpoints_with_2k_multi/Qwen2.5-Coder-1.5B-Instruct-Continuous_2",
+        # "./checkpoints_with_2k_multi/Qwen2.5-Coder-1.5B-Instruct-Continuous_3",
+        # "./checkpoints_with_2k_multi/Qwen2.5-Coder-1.5B-Instruct-Continuous_4",
+        # "./checkpoints_with_2k_multi/Qwen2.5-Coder-1.5B-Instruct-Continuous_5",
+        # "./checkpoints_with_2k_multi/Qwen2.5-Coder-1.5B-Instruct-Continuous_6",
+        # "./checkpoints_with_2k_multi/Qwen2.5-Coder-1.5B-Instruct-Continuous_7",
+        # "./checkpoints_with_2k_multi/Qwen2.5-Coder-1.5B-Instruct-Continuous_8",
+        # "./checkpoints_with_2k_multi/Qwen2.5-Coder-1.5B-Instruct-Continuous_9",
+        "./checkpoints_with_2k_multi/Qwen2.5-Coder-1.5B-Instruct-Continuous_10"
         ]
     
     for model_id in model_ids:
@@ -172,7 +172,7 @@ if __name__ == '__main__':
             else:
                 print(f"Warning: Could not find {neurons_file}. Running baseline evaluation without masking.")
 
-            output_dir = './results/2k_new_training_python_only/'
+            output_dir = './results/leakage_with_2k_multi/'
             os.makedirs(output_dir, exist_ok=True)
 
             print(f"===== Arguments =====")

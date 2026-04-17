@@ -1,12 +1,12 @@
 #!/bin/bash
 
 MODEL_NAME="unsloth/Qwen2.5-Coder-1.5B"
-CODE_FILEPATH="./benchmarks/training/training_data.jsonl"
+CODE_FILEPATH="./benchmarks/training/mceval_and_2k_multi_language.jsonl"
 
 python -u clm_no_lora.py \
     --model_name "$MODEL_NAME" \
     --training_data "$CODE_FILEPATH" \
-    --output_dir "checkpoints_no_lora_new" \
+    --output_dir "checkpoints_with_2k_multi" \
     --epochs 10 \
     --batch_size 1 \
     --gradient_accumulation_steps 8 \
