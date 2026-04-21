@@ -34,7 +34,7 @@ if __name__ == '__main__':
     print(f"    -> Target (Memorized) Dataset Size: {len(target_texts)}")
     print(f"    -> Control (Non-Memorized) Dataset Size: {len(control_texts)}")
 
-    z_thresholds = [6,7,8] # Adjusted to more standard Z-scores based on your previous logs
+    z_thresholds = [1] # Adjusted to more standard Z-scores based on your previous logs
     for z_threshold in z_thresholds:
         model_id = "./checkpoints_with_2k_multi/Qwen2.5-Coder-1.5B-Instruct-Continuous_3"
         
