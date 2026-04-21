@@ -134,6 +134,8 @@ def run_comparison_more_models(models_dict: dict, description="MULTIPLE MODELS",
                 candidate_paths = [
                     # New Method (Benchmark Only) - with checkpoints folder
                     f"./results/benchmark_specific/checkpoints_no_lora_new/Qwen2.5-Coder-1.5B-Instruct-Continuous_{epoch_str}/benchmark_only/pure_memorization_neurons_TH{th_str}_Z{z_str}.json",
+
+                    f"./results/benchmark_specific/checkpoints_with_2k_multi/Qwen2.5-Coder-1.5B-Instruct-Continuous_{epoch_str}/benchmark_only/original_pure_memorization_neurons_TH{th_str}_Z{z_str}.json",
                     
                     # New Method (Benchmark Only) - without checkpoints folder
                     f"./results/benchmark_specific/Qwen2.5-Coder-1.5B-Instruct-Continuous_{epoch_str}/benchmark_only/pure_memorization_neurons_TH{th_str}_Z{z_str}.json",
@@ -579,6 +581,81 @@ def find_converged_checkpoint(base_dir: str, threshold: float = 0.02, model: str
         print(f"{os.path.basename(ckpt_path):<20} | {avg_loss:<15.4f} | {improvement_str}")
         
     return checkpoint_dirs[-1][1]
+
+def diff_and_intersect(pl_only_path: str, all_training_path: str, original_path: str, benchmark_name: str, model_id: str):
+    print("\n=================================================================================================================")
+    print("DETAILED MEMORIZATION & REGRESSION ANALYSIS FOR BENCHMARK: " + benchmark_name.upper() + " - " + model_id)
+    print("=================================================================================================================")
+    
+    def get_passed_set(filepath):
+        passed_tasks = set()
+        all_tasks = set()
+        try:
+            with open(filepath, 'r', encoding='utf-8') as f:
+                for line in f:
+                    row = json.loads(line)
+                    task_id = row['task_id']
+                    all_tasks.add(task_id)
+                    if row['passed']:
+                        passed_tasks.add(task_id)
+            return passed_tasks, all_tasks
+        except FileNotFoundError:
+            print(f"[!] Error: Could not find file at {filepath}")
+            return set(), set()
+
+    # 1. Load the sets
+    pl_passed, pl_all = get_passed_set(pl_only_path)
+    all_passed, all_all = get_passed_set(all_training_path)
+    original_passed, original_all = get_passed_set(original_path)
+    
+    total_tasks = len(all_all)
+    if total_tasks == 0:
+        return
+
+    # 2. Calculate passed tasks difference between Original and the Fine-Tuned models
+    print(f"Original Passed Tasks:     {len(original_passed)}")
+    print(f"PL Only Passed Tasks:      {len(pl_passed)}")
+    print(f"ALL Training Passed Tasks: {len(all_passed)}\n")
+    
+    pl_original_diff = pl_passed - original_passed
+    all_original_diff = all_passed - original_passed
+    
+    print(f"Delta PL Only:      {len(pl_original_diff)} new tasks learned.")
+    print(f"Delta ALL Training: {len(all_original_diff)} new tasks learned.")
+
+    # 3. Calculate Intersections and Differences using Set Math
+    passed_both = all_original_diff.intersection(pl_original_diff)
+    memorized = all_original_diff - pl_original_diff  
+    regressed = pl_original_diff - all_original_diff  
+
+    # 4. Print the Breakdown Matrix
+    # We calculate the total universe of *newly learned* tasks across both models
+    total_new_learned = len(passed_both) + len(memorized) + len(regressed)
+    
+    print(f"\nTotal NEW Tasks Learned Across Both Models: {total_new_learned}")
+    
+    print("-" * 65)
+    print(f"{'Category':<40} | {'Count':<6} | {'% of New Tasks'}")
+    print("-" * 65)
+    print(f"{'1. Pure Memorization (ALL Only)':<40} | {len(memorized):<6} | {(len(memorized)/total_new_learned)*100:>5.2f}%")
+    print(f"{'2. Capacity Starved (PL Only)':<40} | {len(regressed):<6} | {(len(regressed)/total_new_learned)*100:>5.2f}%")
+    print(f"{'3. Robust Generalization (Passed Both)':<40} | {len(passed_both):<6} | {(len(passed_both)/total_new_learned)*100:>5.2f}%")
+    print("-" * 65)
+    
+    # 5. Print the specific IDs for the interesting categories
+    print("\n--- Tasks Memorized (Gained exclusively via Contamination) ---")
+    if len(memorized) == 0:
+        print("None.")
+    else:
+        print(sorted(list(memorized)))
+    
+    print("\n--- Tasks Regressed ---")
+    if len(regressed) == 0:
+        print("None! The ALL model learned everything the PL model did.")
+    else:
+        print(sorted(list(regressed)))
+        
+    return memorized, regressed, passed_both
     
 
 if __name__ == '__main__':
@@ -647,6 +724,26 @@ if __name__ == '__main__':
         "Qwen2.5-Coder-1.5B-Instruct-Continuous_3 - Not masked"
     )
 
+    memorized_new, regressed_new, passed_both_new = diff_and_intersect(
+        "./results/2k_new_training_multi_language/Qwen2.5_Coder_1.5B_Instruct_Continuous_2/mceval_hard/iter_1/result_baseline_mceval_hard.jsonl",
+        "./results/leakage_with_2k_multi/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_baseline_mceval_hard.jsonl",
+        "./results/Qwen2.5_Coder_1.5B_Instruct/mceval_hard/iter_1/result_baseline.jsonl",
+        "mceval_hard",
+        "Qwen2.5-Coder-1.5B-Instruct_Continuous_3"
+    )
+
+    # 1. Calculate the intersections
+    regressed_overlap = regressed.intersection(regressed_new)
+    memorized_overlap = memorized.intersection(memorized_new)
+    
+    # 2. Print the results clearly
+    print("\n--- Overlap Analysis ---")
+    print(f"Regressed Overlap: {len(regressed_overlap)} tasks are in both sets.")
+    print(f" -> (This means {len(regressed) - len(regressed_overlap)} regressed tasks were already solved by the Original model)")
+    
+    print(f"Memorized Overlap: {len(memorized_overlap)} tasks are in both sets.")
+    print(f" -> (This means {len(memorized) - len(memorized_overlap)} memorized tasks were already solved by the Original model)")
+    
     paths = {
         "Masked - Pure Memorization (Z=1)": "./results/leakage_with_2k_multi/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_masked_pure_memorization_0.2347929855128098_Z1.jsonl",
         "Masked - Pure Memorization (Z=2)": "./results/leakage_with_2k_multi/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_masked_pure_memorization_0.28712553574286115_Z2.jsonl",
@@ -657,7 +754,12 @@ if __name__ == '__main__':
         "Masked - Pure Memorization (Z=7)": "./results/leakage_with_2k_multi/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_masked_pure_memorization_0.5487882868931176_Z7.jsonl",
         "Masked - Pure Memorization (Z=8)": "./results/leakage_with_2k_multi/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_masked_pure_memorization_0.601120837123169_Z8.jsonl",
     }
-    analyze_masked_retention(paths, memorized, regressed, passed_both, "Qwen2.5-Coder-1.5B-Instruct-Continuous_3")
+    results = analyze_masked_retention(paths, memorized, regressed, passed_both, "Qwen2.5-Coder-1.5B-Instruct-Continuous_3")
+
+    for model_name, data in paths.items():
+        overlap_pl_only_recovered = regressed_overlap.intersection(results[model_name]["recovered_pl_only"])
+        print(f"\n--- Overlap between Regressed Tasks and PL Only Recovered Tasks in {model_name} ---")
+        print(f"{len(overlap_pl_only_recovered)} tasks are in both sets.")
 
 
     memorized, regressed, passed_both = analyze_pass_distribution(
@@ -666,48 +768,3 @@ if __name__ == '__main__':
         "mceval_hard",
         "Qwen2.5-Coder-1.5B-Instruct-Continuous_3 - Masked Z=7 (TH: 0.30429046095440526)"
     )
-
-
-    # memorized, regressed, passed_both = analyze_pass_distribution(
-    #     "./results/new_training/Qwen2.5_Coder_1.5B_Instruct_Continuous_1/mceval_hard/iter_1/result_baseline.jsonl",
-    #     "./results/Qwen2.5_Coder_1.5B_Instruct/mceval_hard/iter_1/result_baseline.jsonl",
-    #     "mceval_hard",
-    #     "Qwen2.5-Coder-1.5B-Instruct-Continuous_1"
-    # )
-
-    # paths = {
-    #     "Masked - Pure Memorization (Z=2)": "./results/new_training/Qwen2.5_Coder_1.5B_Instruct_Continuous_1/mceval_hard/iter_1/result_masked_original_pure_memorization_0.27271625920139825_Z2.jsonl",
-    #     "Masked - Pure Memorization (Z=3)": "./results/new_training/Qwen2.5_Coder_1.5B_Instruct_Continuous_1/mceval_hard/iter_1/result_masked_original_pure_memorization_0.32940950405768576_Z3.jsonl",
-    # }
-    # analyze_masked_retention(paths, memorized, regressed, passed_both, "Qwen2.5-Coder-1.5B-Instruct-Continuous_1")
-    
-    # paths_mceval = {
-    #     "Original Baseline": "./results/Qwen2.5_Coder_1.5B_Instruct/mceval_hard/iter_1/result_baseline.jsonl",
-    #     "Baseline - ALL training - Epoch 4 new": "./results/new_training/Qwen2.5_Coder_1.5B_Instruct_Continuous_4/mceval_hard/iter_1/result_baseline_mceval.jsonl",
-    #     "PL Only - Epoch 5": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous_5/mceval_hard/iter_1/result_baseline_pl_only.jsonl",
-    #     "Masked - TH: 0.11060994161732104 - Z: 2": "./results/new_training/Qwen2.5_Coder_1.5B_Instruct_Continuous_4/mceval_hard/iter_1/result_masked_0.11060994161732104_Z2.jsonl",
-    #     "Masked - TH: 0.148504996862604 - Z: 3": "./results/new_training/Qwen2.5_Coder_1.5B_Instruct_Continuous_4/mceval_hard/iter_1/result_masked_0.148504996862604_Z3.jsonl",
-    #     "Masked - TH: 0.18640005210788696 - Z: 4": "./results/new_training/Qwen2.5_Coder_1.5B_Instruct_Continuous_4/mceval_hard/iter_1/result_masked_0.18640005210788696_Z4.jsonl",
-    #     "Masked - TH: 0.22429510735316993 - Z: 5": "./results/new_training/Qwen2.5_Coder_1.5B_Instruct_Continuous_4/mceval_hard/iter_1/result_masked_0.22429510735316993_Z5.jsonl",
-    #     "Masked - TH: 0.2621901625984529 - Z: 6": "./results/new_training/Qwen2.5_Coder_1.5B_Instruct_Continuous_4/mceval_hard/iter_1/result_masked_0.2621901625984529_Z6.jsonl",
-    #     "Masked - TH: 0.3000852178437359 - Z: 7": "./results/new_training/Qwen2.5_Coder_1.5B_Instruct_Continuous_4/mceval_hard/iter_1/result_masked_0.3000852178437359_Z7.jsonl",
-    #     "Masked - TH: 0.33798027308901885 - Z: 8": "./results/new_training/Qwen2.5_Coder_1.5B_Instruct_Continuous_4/mceval_hard/iter_1/result_masked_0.33798027308901885_Z8.jsonl"
-    # }
-    # plot_accuracy_vs_threshold(paths_mceval, benchmark_name="mceval_hard")
-
-
-    # paths_humaneval = {
-    #     "Original": "./results/Qwen2.5_Coder_1.5B_Instruct/humaneval_plus/iter_1/result_baseline.jsonl",
-    #     "Baseline - ALL training - Epoch 4 new": "./results/new_training/Qwen2.5_Coder_1.5B_Instruct_Continuous_4/humaneval_plus/iter_1/result_baseline_humaneval_plus.jsonl",
-    #     "Masked - TH: 0.22429510735316993 - Z: 5": "./results/new_training/Qwen2.5_Coder_1.5B_Instruct_Continuous_4/humaneval_plus/iter_1/result_masked_0.22429510735316993_Z5.jsonl"   
-    # }
-
-    # run_comparison_more_models(paths_humaneval, description="MASKED vs BASELINE on HUMANEVAL+", benchmark_name="humaneval_plus")
-
-
-    # paths_mbpp = {
-    #     "Baseline - ALL training - Epoch 4 new": "./results/new_training/Qwen2.5_Coder_1.5B_Instruct_Continuous_4/mbpp_plus/iter_1/result_baseline_mbpp_plus.jsonl",
-    #     "Masked - TH: 0.22429510735316993 - Z: 5": "./results/new_training/Qwen2.5_Coder_1.5B_Instruct_Continuous_4/mbpp_plus/iter_1/result_masked_0.22429510735316993_Z5.jsonl"   
-    # }
-
-    # run_comparison_more_models(paths_mbpp, description="MASKED vs BASELINE on MBPP", benchmark_name="mbpp")
