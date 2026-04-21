@@ -121,14 +121,14 @@ if __name__ == '__main__':
     model_ids = [
         # "./checkpoints_with_2k_multi/Qwen2.5-Coder-1.5B-Instruct-Continuous_1",
         # "./checkpoints_with_2k_multi/Qwen2.5-Coder-1.5B-Instruct-Continuous_2",
-        # "./checkpoints_with_2k_multi/Qwen2.5-Coder-1.5B-Instruct-Continuous_3",
+        "./checkpoints_with_2k_multi/Qwen2.5-Coder-1.5B-Instruct-Continuous_3",
         # "./checkpoints_with_2k_multi/Qwen2.5-Coder-1.5B-Instruct-Continuous_4",
         # "./checkpoints_with_2k_multi/Qwen2.5-Coder-1.5B-Instruct-Continuous_5",
         # "./checkpoints_with_2k_multi/Qwen2.5-Coder-1.5B-Instruct-Continuous_6",
         # "./checkpoints_with_2k_multi/Qwen2.5-Coder-1.5B-Instruct-Continuous_7",
         # "./checkpoints_with_2k_multi/Qwen2.5-Coder-1.5B-Instruct-Continuous_8",
         # "./checkpoints_with_2k_multi/Qwen2.5-Coder-1.5B-Instruct-Continuous_9",
-        "./checkpoints_with_2k_multi/Qwen2.5-Coder-1.5B-Instruct-Continuous_10"
+        # "./checkpoints_with_2k_multi/Qwen2.5-Coder-1.5B-Instruct-Continuous_10"
         ]
     
     for model_id in model_ids:
@@ -141,15 +141,26 @@ if __name__ == '__main__':
             tokenizer.pad_token = tokenizer.eos_token
 
         thresholds = {
-            # "0.22429510735316993": 5, # New training
-            # "0.30368465675975936": 2,
-            # "0.3395982194052997": 3,
-            "0.37551178205084007": 4,
-            # "0.4114253446963804": 5
+            # General thresholds
+            # "0.11177004401792183": 2,
+            # "0.15027412740521853": 3,
+            # "0.18877821079251522": 4,
+            # "0.2272822941798119": 5,
+            # "0.26578637756710866": 6,
+            # "0.30429046095440526": 7,
+            # "0.342794544341702": 8
+            # Pure memorization thresholds
+            # "0.28712553574286115": 2,
+            # "0.33945808597291244": 3,
+            # "0.3917906362029637": 4,
+            # "0.44412318643301507": 5,
+            # "0.4964557366630664": 6,
+            # "0.5487882868931176": 7,
+            "0.601120837123169": 8
         }
 
         for threshold, z in thresholds.items():
-            mask_neurons = False
+            mask_neurons = True
             if mask_neurons:
                 print(f"\n\n==================== Running Pipeline with Threshold {threshold} ====================\n\n")
             else:
@@ -238,6 +249,6 @@ if __name__ == '__main__':
                     row['passed'] = status
                     row['tsed_score'] = tsed_score
                     if mask_neurons:
-                        export_jsonl(row, os.path.join(iteration_dir, f"result_masked_original_pure_memorization_{threshold}_Z{z}.jsonl"))
+                        export_jsonl(row, os.path.join(iteration_dir, f"result_masked_pure_memorization_{threshold}_Z{z}.jsonl"))
                     else:
                         export_jsonl(row, os.path.join(iteration_dir, f"result_baseline_{benchmark_name}.jsonl"))

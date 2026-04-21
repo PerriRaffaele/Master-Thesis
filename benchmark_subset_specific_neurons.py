@@ -15,12 +15,12 @@ activations_dict = defaultdict(list)
 if __name__ == '__main__':
     # 1. Define Paths
     benchmark_name = "mceval_hard"
-    all_training_path = "./results/new_training/Qwen2.5_Coder_1.5B_Instruct_Continuous_4/mceval_hard/iter_1/result_baseline_mceval.jsonl"
-    pl_only_path = "./results/Qwen2.5_Coder_1.5B_Instruct/mceval_hard/iter_1/result_baseline.jsonl"
+    all_training_path = "./results/leakage_with_2k_multi/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_baseline_mceval_hard.jsonl"
+    pl_only_path = "./results/2k_new_training_multi_language/Qwen2.5_Coder_1.5B_Instruct_Continuous_2/mceval_hard/iter_1/result_baseline_mceval_hard.jsonl"
     raw_benchmark_path = f"benchmarks/{benchmark_name}.jsonl" 
     
     # 2. Extract exactly which tasks were memorized
-    memorized_ids, _, _ = analyze_pass_distribution(all_training_path, pl_only_path, benchmark_name)
+    memorized_ids, _, _ = analyze_pass_distribution(all_training_path, pl_only_path, benchmark_name, "Qwen2.5-Coder-1.5B-Instruct_Continuous_3")
     
     if not memorized_ids:
         print("[!] No memorized tasks found. Exiting.")
@@ -34,9 +34,9 @@ if __name__ == '__main__':
     print(f"    -> Target (Memorized) Dataset Size: {len(target_texts)}")
     print(f"    -> Control (Non-Memorized) Dataset Size: {len(control_texts)}")
 
-    z_thresholds = [2,3,4,5] # Adjusted to more standard Z-scores based on your previous logs
+    z_thresholds = [6,7,8] # Adjusted to more standard Z-scores based on your previous logs
     for z_threshold in z_thresholds:
-        model_id = "./checkpoints_no_lora_new/Qwen2.5-Coder-1.5B-Instruct-Continuous_4"
+        model_id = "./checkpoints_with_2k_multi/Qwen2.5-Coder-1.5B-Instruct-Continuous_3"
         
         # Load Model (Only load it ONCE outside the loop to save massive amounts of time!)
         print(f"\n===== Loading Model: {model_id} =====")

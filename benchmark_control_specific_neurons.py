@@ -41,7 +41,7 @@ if __name__ == '__main__':
     # Model
     # model_id = "unsloth/Qwen2.5-Coder-14B-Instruct"
     for z_threshold in z_thresholds:
-        model_id = "./checkpoints_no_lora_new/Qwen2.5-Coder-1.5B-Instruct-Continuous_4"
+        model_id = "./checkpoints_with_2k_multi/Qwen2.5-Coder-1.5B-Instruct-Continuous_3"
         if model_id.startswith("./checkpoints"):
             tokenizer = AutoTokenizer.from_pretrained("unsloth/Qwen2.5-Coder-1.5B-Instruct")
         else:
@@ -53,7 +53,7 @@ if __name__ == '__main__':
         print(model)
 
 
-        output_dir = './results/new_training/'
+        output_dir = './results/leakage_with_2k_multi/'
         os.makedirs(output_dir, exist_ok=True)
 
         print(f"===== Arguments =====")
