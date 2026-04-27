@@ -109,26 +109,19 @@ if __name__ == '__main__':
         2: "mbpp_plus",
         3: "mceval_hard"
     }
-    chosen_benchmark = 3
+    chosen_benchmark = 1
     benchmark_name = benchmark_names[chosen_benchmark]
     max_tokens = 1024
     temperature = 0.0
-    iterations = 1
+    iterations = 5
     benchmark = get_benchmark_by_name(benchmark_name)
     benchmark_df = benchmark.load_data()
     
     # Model
     model_ids = [
-        # "./checkpoints_with_2k_multi/Qwen2.5-Coder-1.5B-Instruct-Continuous_1",
-        # "./checkpoints_with_2k_multi/Qwen2.5-Coder-1.5B-Instruct-Continuous_2",
-        "./checkpoints_with_2k_multi/Qwen2.5-Coder-1.5B-Instruct-Continuous_3",
-        # "./checkpoints_with_2k_multi/Qwen2.5-Coder-1.5B-Instruct-Continuous_4",
-        # "./checkpoints_with_2k_multi/Qwen2.5-Coder-1.5B-Instruct-Continuous_5",
-        # "./checkpoints_with_2k_multi/Qwen2.5-Coder-1.5B-Instruct-Continuous_6",
-        # "./checkpoints_with_2k_multi/Qwen2.5-Coder-1.5B-Instruct-Continuous_7",
-        # "./checkpoints_with_2k_multi/Qwen2.5-Coder-1.5B-Instruct-Continuous_8",
-        # "./checkpoints_with_2k_multi/Qwen2.5-Coder-1.5B-Instruct-Continuous_9",
-        # "./checkpoints_with_2k_multi/Qwen2.5-Coder-1.5B-Instruct-Continuous_10"
+        # "./checkpoints_with_2k_multi/Qwen2.5-Coder-1.5B-Instruct-Continuous_3",
+        # "./checkpoints_multi_language_2k/Qwen2.5-Coder-1.5B-Instruct-Continuous_2",
+        "unsloth/Qwen2.5-Coder-1.5B-Instruct",
         ]
     
     for model_id in model_ids:
@@ -161,7 +154,7 @@ if __name__ == '__main__':
         }
 
         for threshold, z in thresholds.items():
-            mask_neurons = True
+            mask_neurons = False
             if mask_neurons:
                 print(f"\n\n==================== Running Pipeline with Threshold {threshold} ====================\n\n")
             else:
@@ -176,15 +169,16 @@ if __name__ == '__main__':
 
             # check if model_id ends with a number
             neurons_file = None
-            neurons_file = f"./results/benchmark_specific/{model_id.split('./')[1]}/benchmark_only/original_pure_memorization_neurons_TH{threshold}_Z{z}.json"
+            # neurons_file = f"./results/benchmark_specific/{model_id.split('./')[1]}/benchmark_only/original_pure_memorization_neurons_TH{threshold}_Z{z}.json"
             # neurons_file = f"./results/benchmark_specific/{model_id.split('./')[1]}/new_dataset/mceval_hard_jsonl_top_benchmark_neurons_10000_{threshold}_Z{z}.json"
+            neurons_file = f"./results/benchmark_specific/{model_id.split('/')[1]}/new_dataset/mceval_hard_jsonl_top_benchmark_neurons_10000_{threshold}_Z{z}.json"
             if os.path.exists(neurons_file) and mask_neurons:
                 model = masking_neurons(model, neurons_file)
                 verify_masking(model, neurons_file)
             else:
                 print(f"Warning: Could not find {neurons_file}. Running baseline evaluation without masking.")
 
-            output_dir = './results/leakage_with_2k_multi/'
+            output_dir = './results/instruct/'
             os.makedirs(output_dir, exist_ok=True)
 
             print(f"===== Arguments =====")
@@ -194,7 +188,7 @@ if __name__ == '__main__':
             print(f"Temperature: {temperature}")
             print(f"Output dir: {output_dir}")
             print(f"======================")
-
+            
             passed, num_instances = 0, len(benchmark_df)
             #     # System prompt adapted from Reflexion (https://github.com/noahshinn/reflexion)
             system_prompt = f"""You are an AI that only responds with Python code, NOT ENGLISH. You will be given a function signature and its docstring by the user. Write your full implementation. You always return the signature and anything that came before it in the input prompt (such as the docstring, libraries, imports, and so on) along with the full implementation of the function. Write the output in a markdown code block. For example:\n```\n<your code here>\n```"""

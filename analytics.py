@@ -286,8 +286,8 @@ def analyze_pass_distribution(all_training_path: str, pl_only_path: str, benchma
     
     print(f"{'Category':<30} | {'Count':<6} | {'% of Total'}")
     print("-" * 55)
-    print(f"{'1. Memorized (ALL Training)':<30} | {len(memorized):<6} | {(len(memorized)/total_tasks)*100:>5.2f}%")
-    print(f"{'2. Solved (PL Only)':<30} | {len(regressed):<6} | {(len(regressed)/total_tasks)*100:>5.2f}%")
+    print(f"{'1. Leaked model':<30} | {len(memorized):<6} | {(len(memorized)/total_tasks)*100:>5.2f}%")
+    print(f"{'2. PL only (2k multi)':<30} | {len(regressed):<6} | {(len(regressed)/total_tasks)*100:>5.2f}%")
     print(f"{'3. Passed Both':<30} | {len(passed_both):<6} | {(len(passed_both)/total_tasks)*100:>5.2f}%")
     print(f"{'4. Failed Both':<30} | {len(failed_both):<6} | {(len(failed_both)/total_tasks)*100:>5.2f}%")
     print("-" * 55)
@@ -621,7 +621,7 @@ def diff_and_intersect(pl_only_path: str, all_training_path: str, original_path:
     all_original_diff = all_passed - original_passed
     
     print(f"Delta PL Only:      {len(pl_original_diff)} new tasks learned.")
-    print(f"Delta ALL Training: {len(all_original_diff)} new tasks learned.")
+    print(f"Delta Leaked Training: {len(all_original_diff)} new tasks learned.")
 
     # 3. Calculate Intersections and Differences using Set Math
     passed_both = all_original_diff.intersection(pl_original_diff)
@@ -637,7 +637,7 @@ def diff_and_intersect(pl_only_path: str, all_training_path: str, original_path:
     print("-" * 65)
     print(f"{'Category':<40} | {'Count':<6} | {'% of New Tasks'}")
     print("-" * 65)
-    print(f"{'1. Pure Memorization (ALL Only)':<40} | {len(memorized):<6} | {(len(memorized)/total_new_learned)*100:>5.2f}%")
+    print(f"{'1. Pure Memorization (Leaked model)':<40} | {len(memorized):<6} | {(len(memorized)/total_new_learned)*100:>5.2f}%")
     print(f"{'2. Capacity Starved (PL Only)':<40} | {len(regressed):<6} | {(len(regressed)/total_new_learned)*100:>5.2f}%")
     print(f"{'3. Robust Generalization (Passed Both)':<40} | {len(passed_both):<6} | {(len(passed_both)/total_new_learned)*100:>5.2f}%")
     print("-" * 65)
@@ -656,7 +656,83 @@ def diff_and_intersect(pl_only_path: str, all_training_path: str, original_path:
         print(sorted(list(regressed)))
         
     return memorized, regressed, passed_both
+
+def analyze_pass_distribution_multi_iter(all_training_path_iter1: str, pl_only_path_iter1: str, benchmark_name: str, model_id: str, num_iters: int = 5):
+    print("\n=================================================================================================================")
+    print(f"STRICT {num_iters}-ITERATION MEMORIZATION & REGRESSION ANALYSIS: " + benchmark_name.upper() + " - " + model_id)
+    print("=================================================================================================================")
     
+    def get_consistent_passed_set(base_filepath):
+        passed_in_all_iters = None
+        all_tasks = set()
+        
+        # Loop through iter_1, iter_2, ..., iter_5
+        for i in range(1, num_iters + 1):
+            # Dynamically replace 'iter_1' in the string with the current iteration
+            filepath = base_filepath.replace("iter_1", f"iter_{i}")
+            current_iter_passed = set()
+            
+            try:
+                with open(filepath, 'r', encoding='utf-8') as f:
+                    for line in f:
+                        row = json.loads(line)
+                        task_id = row['task_id']
+                        all_tasks.add(task_id)
+                        if row.get('passed', False):
+                            current_iter_passed.add(task_id)
+            except FileNotFoundError:
+                print(f"[!] Error: Could not find file at {filepath}")
+                # If a file is missing, we can't guarantee it passed 5 times.
+                return set(), all_tasks
+            
+            # If it's the first iteration, initialize the set
+            if passed_in_all_iters is None:
+                passed_in_all_iters = current_iter_passed
+            else:
+                # Keep ONLY tasks that also passed in this current iteration
+                passed_in_all_iters = passed_in_all_iters.intersection(current_iter_passed)
+                
+        return passed_in_all_iters, all_tasks
+
+    # 1. Load the STRICT sets
+    pl_passed, pl_all = get_consistent_passed_set(pl_only_path_iter1)
+    all_passed, all_all = get_consistent_passed_set(all_training_path_iter1)
+    
+    total_tasks = len(all_all)
+    if total_tasks == 0:
+        return set(), set(), set()
+
+    # 2. Calculate Intersections and Differences using Set Math
+    passed_both = all_passed.intersection(pl_passed)
+    memorized = all_passed - pl_passed  # In ALL strictly, but not in PL strictly
+    regressed = pl_passed - all_passed  # In PL strictly, but not in ALL strictly
+    failed_both = all_all - (all_passed.union(pl_passed))
+
+    # 3. Print the Breakdown Matrix
+    print(f"Total Tasks Evaluated: {total_tasks}\n")
+    
+    print(f"{'Category (Passed ALL 5 Iters)':<35} | {'Count':<6} | {'% of Total'}")
+    print("-" * 60)
+    print(f"{'1. Leaked model':<35} | {len(memorized):<6} | {(len(memorized)/total_tasks)*100:>5.2f}%")
+    print(f"{'2. PL only (2k multi)':<35} | {len(regressed):<6} | {(len(regressed)/total_tasks)*100:>5.2f}%")
+    print(f"{'3. Passed Both':<35} | {len(passed_both):<6} | {(len(passed_both)/total_tasks)*100:>5.2f}%")
+    print(f"{'4. Failed/Flaky (Did not pass all)':<35} | {len(failed_both):<6} | {(len(failed_both)/total_tasks)*100:>5.2f}%")
+    print("-" * 60)
+    
+    assert len(memorized) + len(regressed) + len(passed_both) + len(failed_both) == total_tasks
+    
+    # 4. Print the specific IDs
+    print("\n--- Tasks Memorized (Consistently passed only in Leaked Model) ---")
+    print(sorted(list(memorized)))
+    
+    print("\n--- Tasks Regressed (Consistently passed only in PL Only Model) ---")
+    if len(regressed) == 0:
+        print("None! The leaked model reliably learned everything the PL model did.")
+    else:
+        print(sorted(list(regressed)))
+        
+    return memorized, regressed, passed_both
+
 
 if __name__ == '__main__':
 
@@ -676,21 +752,21 @@ if __name__ == '__main__':
 
     paths_mceval = {
         "Original Instruct": "./results/Qwen2.5_Coder_1.5B_Instruct/mceval_hard/iter_1/result_baseline.jsonl",
-        "Baseline PL ONLY - Epoch 5": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous_5/mceval_hard/iter_1/result_baseline_pl_only.jsonl",
-        "Baseline - Epoch 4 new": "./results/new_training/Qwen2.5_Coder_1.5B_Instruct_Continuous_4/mceval_hard/iter_1/result_baseline_mceval.jsonl",
-        "Baseline - PL ONLY - 2k multi - Epoch 1": "./results/2k_new_training_multi_language/Qwen2.5_Coder_1.5B_Instruct_Continuous_1/mceval_hard/iter_1/result_baseline_mceval_hard.jsonl",
-        "Baseline - PL ONLY - 2k multi - Epoch 2": "./results/2k_new_training_multi_language/Qwen2.5_Coder_1.5B_Instruct_Continuous_2/mceval_hard/iter_1/result_baseline_mceval_hard.jsonl",
-        "Baseline - PL ONLY - 2k multi - Epoch 3": "./results/2k_new_training_multi_language/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_baseline_mceval_hard.jsonl",
-        "Baseline - PL ONLY - 2k multi - Epoch 4": "./results/2k_new_training_multi_language/Qwen2.5_Coder_1.5B_Instruct_Continuous_4/mceval_hard/iter_1/result_baseline_mceval_hard.jsonl",
-        "Baseline - PL ONLY - 2k multi - Epoch 5": "./results/2k_new_training_multi_language/Qwen2.5_Coder_1.5B_Instruct_Continuous_5/mceval_hard/iter_1/result_baseline_mceval_hard.jsonl",
-        "Baseline - PL ONLY - 2k multi - Epoch 6": "./results/2k_new_training_multi_language/Qwen2.5_Coder_1.5B_Instruct_Continuous_6/mceval_hard/iter_1/result_baseline_mceval_hard.jsonl",
-        "Baseline - PL ONLY - 2k multi - Epoch 7": "./results/2k_new_training_multi_language/Qwen2.5_Coder_1.5B_Instruct_Continuous_7/mceval_hard/iter_1/result_baseline_mceval_hard.jsonl",
-        "Baseline - PL ONLY - 2k multi - Epoch 8": "./results/2k_new_training_multi_language/Qwen2.5_Coder_1.5B_Instruct_Continuous_8/mceval_hard/iter_1/result_baseline_mceval_hard.jsonl",
-        "Baseline - PL ONLY - 2k multi - Epoch 9": "./results/2k_new_training_multi_language/Qwen2.5_Coder_1.5B_Instruct_Continuous_9/mceval_hard/iter_1/result_baseline_mceval_hard.jsonl",
-        "Baseline - PL ONLY - 2k multi - Epoch 10": "./results/2k_new_training_multi_language/Qwen2.5_Coder_1.5B_Instruct_Continuous_10/mceval_hard/iter_1/result_baseline_mceval_hard.jsonl",
+        "Baseline - OLD - PL ONLY - Epoch 5": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous_5/mceval_hard/iter_1/result_baseline_pl_only.jsonl",
+        "Baseline - OLD - Epoch 4 new": "./results/new_training/Qwen2.5_Coder_1.5B_Instruct_Continuous_4/mceval_hard/iter_1/result_baseline_mceval.jsonl",
+        # "Baseline - PL ONLY - 2k multi - Epoch 1": "./results/2k_new_training_multi_language/Qwen2.5_Coder_1.5B_Instruct_Continuous_1/mceval_hard/iter_1/result_baseline_mceval_hard.jsonl",
+        "Baseline - NEW - PL ONLY - 2k multi - Epoch 2": "./results/2k_new_training_multi_language/Qwen2.5_Coder_1.5B_Instruct_Continuous_2/mceval_hard/iter_1/result_baseline_mceval_hard.jsonl",
+        # "Baseline - PL ONLY - 2k multi - Epoch 3": "./results/2k_new_training_multi_language/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_baseline_mceval_hard.jsonl",
+        # "Baseline - PL ONLY - 2k multi - Epoch 4": "./results/2k_new_training_multi_language/Qwen2.5_Coder_1.5B_Instruct_Continuous_4/mceval_hard/iter_1/result_baseline_mceval_hard.jsonl",
+        # "Baseline - PL ONLY - 2k multi - Epoch 5": "./results/2k_new_training_multi_language/Qwen2.5_Coder_1.5B_Instruct_Continuous_5/mceval_hard/iter_1/result_baseline_mceval_hard.jsonl",
+        # "Baseline - PL ONLY - 2k multi - Epoch 6": "./results/2k_new_training_multi_language/Qwen2.5_Coder_1.5B_Instruct_Continuous_6/mceval_hard/iter_1/result_baseline_mceval_hard.jsonl",
+        # "Baseline - PL ONLY - 2k multi - Epoch 7": "./results/2k_new_training_multi_language/Qwen2.5_Coder_1.5B_Instruct_Continuous_7/mceval_hard/iter_1/result_baseline_mceval_hard.jsonl",
+        # "Baseline - PL ONLY - 2k multi - Epoch 8": "./results/2k_new_training_multi_language/Qwen2.5_Coder_1.5B_Instruct_Continuous_8/mceval_hard/iter_1/result_baseline_mceval_hard.jsonl",
+        # "Baseline - PL ONLY - 2k multi - Epoch 9": "./results/2k_new_training_multi_language/Qwen2.5_Coder_1.5B_Instruct_Continuous_9/mceval_hard/iter_1/result_baseline_mceval_hard.jsonl",
+        # "Baseline - PL ONLY - 2k multi - Epoch 10": "./results/2k_new_training_multi_language/Qwen2.5_Coder_1.5B_Instruct_Continuous_10/mceval_hard/iter_1/result_baseline_mceval_hard.jsonl",
         # "Baseline - Epoch 1 multi": "./results/leakage_with_2k_multi/Qwen2.5_Coder_1.5B_Instruct_Continuous_1/mceval_hard/iter_1/result_baseline_mceval_hard.jsonl",
         # "Baseline - Epoch 2 multi": "./results/leakage_with_2k_multi/Qwen2.5_Coder_1.5B_Instruct_Continuous_2/mceval_hard/iter_1/result_baseline_mceval_hard.jsonl",
-        "Baseline - Epoch 3 multi": "./results/leakage_with_2k_multi/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_baseline_mceval_hard.jsonl",
+        "Baseline - NEW -Epoch 3 multi": "./results/leakage_with_2k_multi/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_baseline_mceval_hard.jsonl",
         # "Baseline - Epoch 4 multi": "./results/leakage_with_2k_multi/Qwen2.5_Coder_1.5B_Instruct_Continuous_4/mceval_hard/iter_1/result_baseline_mceval_hard.jsonl",
         # "Baseline - Epoch 5 multi": "./results/leakage_with_2k_multi/Qwen2.5_Coder_1.5B_Instruct_Continuous_5/mceval_hard/iter_1/result_baseline_mceval_hard.jsonl",
         # "Baseline - Epoch 6 multi": "./results/leakage_with_2k_multi/Qwen2.5_Coder_1.5B_Instruct_Continuous_6/mceval_hard/iter_1/result_baseline_mceval_hard.jsonl",
@@ -704,7 +780,6 @@ if __name__ == '__main__':
         "Masked - TH: 0.26578637756710866 - Z: 6": "./results/leakage_with_2k_multi/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_masked_0.26578637756710866_Z6.jsonl",
         "Masked - TH: 0.30429046095440526 - Z: 7": "./results/leakage_with_2k_multi/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_masked_0.30429046095440526_Z7.jsonl",
         "Masked - TH: 0.342794544341702 - Z: 8": "./results/leakage_with_2k_multi/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_masked_0.342794544341702_Z8.jsonl",
-
         "Masked Pure - TH: 0.2347929855128098 - Z: 1":"./results/leakage_with_2k_multi/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_masked_pure_memorization_0.2347929855128098_Z1.jsonl",
         "Masked Pure - TH: 0.28712553574286115 - Z: 2":"./results/leakage_with_2k_multi/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_masked_pure_memorization_0.28712553574286115_Z2.jsonl",
         "Masked Pure - TH: 0.33945808597291244 - Z: 3":"./results/leakage_with_2k_multi/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_masked_pure_memorization_0.33945808597291244_Z3.jsonl",
@@ -717,7 +792,7 @@ if __name__ == '__main__':
     }
     run_comparison_more_models(paths_mceval, description="ALL MASKED VARIANTS vs BASELINES", benchmark_name="mceval_hard")
 
-    memorized, regressed, passed_both = analyze_pass_distribution(
+    memorized_1, regressed_1, passed_both_1 = analyze_pass_distribution(
         "./results/leakage_with_2k_multi/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_baseline_mceval_hard.jsonl",
         "./results/2k_new_training_multi_language/Qwen2.5_Coder_1.5B_Instruct_Continuous_2/mceval_hard/iter_1/result_baseline_mceval_hard.jsonl",
         "mceval_hard",
@@ -733,16 +808,16 @@ if __name__ == '__main__':
     )
 
     # 1. Calculate the intersections
-    regressed_overlap = regressed.intersection(regressed_new)
-    memorized_overlap = memorized.intersection(memorized_new)
+    regressed_overlap = regressed_1.intersection(regressed_new)
+    memorized_overlap = memorized_1.intersection(memorized_new)
     
     # 2. Print the results clearly
     print("\n--- Overlap Analysis ---")
     print(f"Regressed Overlap: {len(regressed_overlap)} tasks are in both sets.")
-    print(f" -> (This means {len(regressed) - len(regressed_overlap)} regressed tasks were already solved by the Original model)")
+    print(f" -> (This means {len(regressed_1) - len(regressed_overlap)} regressed tasks were already solved by the Original model)")
     
     print(f"Memorized Overlap: {len(memorized_overlap)} tasks are in both sets.")
-    print(f" -> (This means {len(memorized) - len(memorized_overlap)} memorized tasks were already solved by the Original model)")
+    print(f" -> (This means {len(memorized_1) - len(memorized_overlap)} memorized tasks were already solved by the Original model)")
     
     paths = {
         "Masked - Pure Memorization (Z=1)": "./results/leakage_with_2k_multi/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_masked_pure_memorization_0.2347929855128098_Z1.jsonl",
@@ -754,7 +829,7 @@ if __name__ == '__main__':
         "Masked - Pure Memorization (Z=7)": "./results/leakage_with_2k_multi/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_masked_pure_memorization_0.5487882868931176_Z7.jsonl",
         "Masked - Pure Memorization (Z=8)": "./results/leakage_with_2k_multi/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_masked_pure_memorization_0.601120837123169_Z8.jsonl",
     }
-    results = analyze_masked_retention(paths, memorized, regressed, passed_both, "Qwen2.5-Coder-1.5B-Instruct-Continuous_3")
+    results = analyze_masked_retention(paths, memorized_1, regressed_1, passed_both_1, "Qwen2.5-Coder-1.5B-Instruct-Continuous_3")
 
     for model_name, data in paths.items():
         overlap_pl_only_recovered = regressed_overlap.intersection(results[model_name]["recovered_pl_only"])
@@ -767,4 +842,12 @@ if __name__ == '__main__':
         "./results/2k_new_training_multi_language/Qwen2.5_Coder_1.5B_Instruct_Continuous_2/mceval_hard/iter_1/result_baseline_mceval_hard.jsonl",
         "mceval_hard",
         "Qwen2.5-Coder-1.5B-Instruct-Continuous_3 - Masked Z=7 (TH: 0.30429046095440526)"
+    )
+
+    memorized_2, regressed_2, passed_both_2 = analyze_pass_distribution_multi_iter(
+        "./results/leakage_with_2k_multi/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_baseline_mceval_hard.jsonl",
+        "./results/2k_new_training_multi_language/Qwen2.5_Coder_1.5B_Instruct_Continuous_2/mceval_hard/iter_1/result_baseline_mceval_hard.jsonl",
+        "mceval_hard",
+        "Qwen2.5-Coder-1.5B-Instruct-Continuous_3 - Not masked",
+        num_iters=5
     )
