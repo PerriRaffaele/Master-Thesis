@@ -733,6 +733,97 @@ def analyze_pass_distribution_multi_iter(all_training_path_iter1: str, pl_only_p
         
     return memorized, regressed, passed_both
 
+def diff_and_intersect_multi_iter(pl_only_path: str, all_training_path: str, original_path: str, benchmark_name: str, model_id: str, num_iters: int = 5):
+    print("\n=================================================================================================================")
+    print("DETAILED MEMORIZATION & REGRESSION ANALYSIS FOR BENCHMARK: " + benchmark_name.upper() + " - " + model_id)
+    print("=================================================================================================================")
+    
+    def get_passed_set(base_filepath):
+        passed_in_all_iters = None
+        all_tasks = set()
+        
+        # Loop through iter_1, iter_2, ..., iter_5
+        for i in range(1, num_iters + 1):
+            # Dynamically replace 'iter_1' in the string with the current iteration
+            filepath = base_filepath.replace("iter_1", f"iter_{i}")
+            current_iter_passed = set()
+            
+            try:
+                with open(filepath, 'r', encoding='utf-8') as f:
+                    for line in f:
+                        row = json.loads(line)
+                        task_id = row['task_id']
+                        all_tasks.add(task_id)
+                        if row.get('passed', False):
+                            current_iter_passed.add(task_id)
+            except FileNotFoundError:
+                print(f"[!] Error: Could not find file at {filepath}")
+                # If a file is missing, we can't guarantee it passed 5 times.
+                return set(), all_tasks
+            
+            # If it's the first iteration, initialize the set
+            if passed_in_all_iters is None:
+                passed_in_all_iters = current_iter_passed
+            else:
+                # Keep ONLY tasks that also passed in this current iteration
+                passed_in_all_iters = passed_in_all_iters.intersection(current_iter_passed)
+                
+        return passed_in_all_iters, all_tasks
+
+    # 1. Load the sets
+    pl_passed, pl_all = get_passed_set(pl_only_path)
+    all_passed, all_all = get_passed_set(all_training_path)
+    original_passed, original_all = get_passed_set(original_path)
+    
+    total_tasks = len(all_all)
+    if total_tasks == 0:
+        return
+
+    # 2. Calculate passed tasks difference between Original and the Fine-Tuned models
+    print(f"Original Passed Tasks:     {len(original_passed)}")
+    print(f"PL Only Passed Tasks:      {len(pl_passed)}")
+    print(f"ALL Training Passed Tasks: {len(all_passed)}\n")
+    
+    pl_original_diff = pl_passed - original_passed
+    all_original_diff = all_passed - original_passed
+    
+    print(f"Delta PL Only:      {len(pl_original_diff)} new tasks learned.")
+    print(f"Delta Leaked Training: {len(all_original_diff)} new tasks learned.")
+
+    # 3. Calculate Intersections and Differences using Set Math
+    passed_both = all_original_diff.intersection(pl_original_diff)
+    memorized = all_original_diff - pl_original_diff  
+    regressed = pl_original_diff - all_original_diff  
+
+    # 4. Print the Breakdown Matrix
+    # We calculate the total universe of *newly learned* tasks across both models
+    total_new_learned = len(passed_both) + len(memorized) + len(regressed)
+    
+    print(f"\nTotal NEW Tasks Learned Across Both Models: {total_new_learned}")
+    
+    print("-" * 65)
+    print(f"{'Category':<40} | {'Count':<6} | {'% of New Tasks'}")
+    print("-" * 65)
+    print(f"{'1. Pure Memorization (Leaked model)':<40} | {len(memorized):<6} | {(len(memorized)/total_new_learned)*100:>5.2f}%")
+    print(f"{'2. Capacity Starved (PL Only)':<40} | {len(regressed):<6} | {(len(regressed)/total_new_learned)*100:>5.2f}%")
+    print(f"{'3. Robust Generalization (Passed Both)':<40} | {len(passed_both):<6} | {(len(passed_both)/total_new_learned)*100:>5.2f}%")
+    print("-" * 65)
+    
+    # 5. Print the specific IDs for the interesting categories
+    print("\n--- Tasks Memorized (Gained exclusively via Contamination) ---")
+    if len(memorized) == 0:
+        print("None.")
+    else:
+        print(sorted(list(memorized)))
+    
+    print("\n--- Tasks Regressed ---")
+    if len(regressed) == 0:
+        print("None! The ALL model learned everything the PL model did.")
+    else:
+        print(sorted(list(regressed)))
+        
+    return memorized, regressed, passed_both
+
 
 if __name__ == '__main__':
 
@@ -802,7 +893,7 @@ if __name__ == '__main__':
     memorized_new, regressed_new, passed_both_new = diff_and_intersect(
         "./results/2k_new_training_multi_language/Qwen2.5_Coder_1.5B_Instruct_Continuous_2/mceval_hard/iter_1/result_baseline_mceval_hard.jsonl",
         "./results/leakage_with_2k_multi/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_baseline_mceval_hard.jsonl",
-        "./results/Qwen2.5_Coder_1.5B_Instruct/mceval_hard/iter_1/result_baseline.jsonl",
+        "./results/instruct/Qwen2.5_Coder_1.5B_Instruct/mceval_hard/iter_1/result_baseline_mceval_hard.jsonl",
         "mceval_hard",
         "Qwen2.5-Coder-1.5B-Instruct_Continuous_3"
     )
@@ -849,5 +940,14 @@ if __name__ == '__main__':
         "./results/2k_new_training_multi_language/Qwen2.5_Coder_1.5B_Instruct_Continuous_2/mceval_hard/iter_1/result_baseline_mceval_hard.jsonl",
         "mceval_hard",
         "Qwen2.5-Coder-1.5B-Instruct-Continuous_3 - Not masked",
+        num_iters=5
+    )
+
+    memorized_new_2, regressed_new_2, passed_both_new_2 = diff_and_intersect_multi_iter(
+        "./results/2k_new_training_multi_language/Qwen2.5_Coder_1.5B_Instruct_Continuous_2/mceval_hard/iter_1/result_baseline_mceval_hard.jsonl",
+        "./results/leakage_with_2k_multi/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_baseline_mceval_hard.jsonl",
+        "./results/instruct/Qwen2.5_Coder_1.5B_Instruct/mceval_hard/iter_1/result_baseline_mceval_hard.jsonl",
+        "mceval_hard",
+        "Qwen2.5-Coder-1.5B-Instruct_Continuous_3",
         num_iters=5
     )
