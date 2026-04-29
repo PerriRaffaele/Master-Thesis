@@ -3,6 +3,8 @@ import os
 import numpy as np
 import matplotlib.pyplot as plt
 import re
+from matplotlib_venn import venn2
+import matplotlib.patches as mpatches
 
 def compare_neuron_jsons(file_1: str, file_2: str, description: str):
     with open(file_1, 'r') as f1, open(file_2, 'r') as f2:
@@ -666,9 +668,7 @@ def analyze_pass_distribution_multi_iter(all_training_path_iter1: str, pl_only_p
         passed_in_all_iters = None
         all_tasks = set()
         
-        # Loop through iter_1, iter_2, ..., iter_5
         for i in range(1, num_iters + 1):
-            # Dynamically replace 'iter_1' in the string with the current iteration
             filepath = base_filepath.replace("iter_1", f"iter_{i}")
             current_iter_passed = set()
             
@@ -682,14 +682,11 @@ def analyze_pass_distribution_multi_iter(all_training_path_iter1: str, pl_only_p
                             current_iter_passed.add(task_id)
             except FileNotFoundError:
                 print(f"[!] Error: Could not find file at {filepath}")
-                # If a file is missing, we can't guarantee it passed 5 times.
                 return set(), all_tasks
             
-            # If it's the first iteration, initialize the set
             if passed_in_all_iters is None:
                 passed_in_all_iters = current_iter_passed
             else:
-                # Keep ONLY tasks that also passed in this current iteration
                 passed_in_all_iters = passed_in_all_iters.intersection(current_iter_passed)
                 
         return passed_in_all_iters, all_tasks
@@ -704,32 +701,65 @@ def analyze_pass_distribution_multi_iter(all_training_path_iter1: str, pl_only_p
 
     # 2. Calculate Intersections and Differences using Set Math
     passed_both = all_passed.intersection(pl_passed)
-    memorized = all_passed - pl_passed  # In ALL strictly, but not in PL strictly
-    regressed = pl_passed - all_passed  # In PL strictly, but not in ALL strictly
+    memorized = all_passed - pl_passed  
+    regressed = pl_passed - all_passed  
     failed_both = all_all - (all_passed.union(pl_passed))
+
+    # Calculate Percentages for plotting
+    pct_mem = (len(memorized) / total_tasks) * 100
+    pct_reg = (len(regressed) / total_tasks) * 100
+    pct_both = (len(passed_both) / total_tasks) * 100
+    pct_fail = (len(failed_both) / total_tasks) * 100
 
     # 3. Print the Breakdown Matrix
     print(f"Total Tasks Evaluated: {total_tasks}\n")
-    
     print(f"{'Category (Passed ALL 5 Iters)':<35} | {'Count':<6} | {'% of Total'}")
     print("-" * 60)
-    print(f"{'1. Leaked model':<35} | {len(memorized):<6} | {(len(memorized)/total_tasks)*100:>5.2f}%")
-    print(f"{'2. PL only (2k multi)':<35} | {len(regressed):<6} | {(len(regressed)/total_tasks)*100:>5.2f}%")
-    print(f"{'3. Passed Both':<35} | {len(passed_both):<6} | {(len(passed_both)/total_tasks)*100:>5.2f}%")
-    print(f"{'4. Failed/Flaky (Did not pass all)':<35} | {len(failed_both):<6} | {(len(failed_both)/total_tasks)*100:>5.2f}%")
+    print(f"{'1. Leaked model':<35} | {len(memorized):<6} | {pct_mem:>5.2f}%")
+    print(f"{'2. PL only (2k multi)':<35} | {len(regressed):<6} | {pct_reg:>5.2f}%")
+    print(f"{'3. Passed Both':<35} | {len(passed_both):<6} | {pct_both:>5.2f}%")
+    print(f"{'4. Failed/Flaky (Did not pass all)':<35} | {len(failed_both):<6} | {pct_fail:>5.2f}%")
     print("-" * 60)
     
     assert len(memorized) + len(regressed) + len(passed_both) + len(failed_both) == total_tasks
     
-    # 4. Print the specific IDs
-    print("\n--- Tasks Memorized (Consistently passed only in Leaked Model) ---")
-    print(sorted(list(memorized)))
+    # Safe string for filenames
+    safe_model_id = model_id.replace("/", "-").replace(" ", "_")
+
+    # =================================================================
+    # DONUT CHART
+    # =================================================================
+    fig, ax = plt.subplots(figsize=(8, 8))
     
-    print("\n--- Tasks Regressed (Consistently passed only in PL Only Model) ---")
-    if len(regressed) == 0:
-        print("None! The leaked model reliably learned everything the PL model did.")
-    else:
-        print(sorted(list(regressed)))
+    labels = ['Memorized\n(Leaked Only)', 'Regressed\n(PL Only)', 'Robust\n(Passed Both)', 'Failed\n(Failed Both)']
+    sizes = [len(memorized), len(regressed), len(passed_both), len(failed_both)]
+    colors = ['#E74C3C', '#3498DB', '#2ECC71', '#BDC3C7']
+    
+    # Filter out categories that are 0 so they don't break the plot
+    filtered_labels = [l for l, s in zip(labels, sizes) if s > 0]
+    filtered_sizes = [s for s in sizes if s > 0]
+    filtered_colors = [c for c, s in zip(colors, sizes) if s > 0]
+
+    # Create the pie chart
+    wedges, texts, autotexts = ax.pie(
+        filtered_sizes, labels=filtered_labels, colors=filtered_colors, 
+        autopct='%1.1f%%', startangle=140, pctdistance=0.82, 
+        textprops=dict(color="black", fontweight='bold', fontsize=11)
+    )
+    
+    # Draw a white circle in the center to turn it into a Donut Chart
+    centre_circle = plt.Circle((0,0), 0.65, fc='white')
+    fig.gca().add_artist(centre_circle)
+    
+    # Equal aspect ratio ensures that pie is drawn as a circle
+    ax.axis('equal')  
+    plt.title(f"Task Outcomes\n{benchmark_name.upper()} - {model_id}", fontsize=14, fontweight='bold', pad=20)
+    
+    # Add the total number of tasks in the very center of the donut
+    plt.text(0, 0, f"Total Tasks\n{total_tasks}", ha='center', va='center', fontsize=14, fontweight='bold')
+    
+    plt.savefig(f"./results/donut_{benchmark_name}_{safe_model_id}.png", dpi=300, bbox_inches='tight')
+    plt.close()
         
     return memorized, regressed, passed_both
 
@@ -774,6 +804,8 @@ def diff_and_intersect_multi_iter(pl_only_path: str, all_training_path: str, ori
     pl_passed, pl_all = get_passed_set(pl_only_path)
     all_passed, all_all = get_passed_set(all_training_path)
     original_passed, original_all = get_passed_set(original_path)
+    failed_both = all_all - (all_passed.union(pl_passed))
+
     
     total_tasks = len(all_all)
     if total_tasks == 0:
@@ -808,6 +840,42 @@ def diff_and_intersect_multi_iter(pl_only_path: str, all_training_path: str, ori
     print(f"{'2. Capacity Starved (PL Only)':<40} | {len(regressed):<6} | {(len(regressed)/total_new_learned)*100:>5.2f}%")
     print(f"{'3. Robust Generalization (Passed Both)':<40} | {len(passed_both):<6} | {(len(passed_both)/total_new_learned)*100:>5.2f}%")
     print("-" * 65)
+
+    # =================================================================
+    # DONUT CHART
+    # =================================================================
+    safe_model_id = model_id.replace("/", "-").replace(" ", "_")
+    fig, ax = plt.subplots(figsize=(8, 8))
+    
+    labels = ['Memorized\n(Leaked Only)', 'Regressed\n(PL Only)', 'Robust\n(Passed Both)', 'Failed\n(Failed Both)']
+    sizes = [len(memorized), len(regressed), len(passed_both), len(failed_both)]
+    colors = ['#E74C3C', '#3498DB', '#2ECC71', '#BDC3C7']
+    
+    # Filter out categories that are 0 so they don't break the plot
+    filtered_labels = [l for l, s in zip(labels, sizes) if s > 0]
+    filtered_sizes = [s for s in sizes if s > 0]
+    filtered_colors = [c for c, s in zip(colors, sizes) if s > 0]
+
+    # Create the pie chart
+    wedges, texts, autotexts = ax.pie(
+        filtered_sizes, labels=filtered_labels, colors=filtered_colors, 
+        autopct='%1.1f%%', startangle=140, pctdistance=0.82, 
+        textprops=dict(color="black", fontweight='bold', fontsize=11)
+    )
+    
+    # Draw a white circle in the center to turn it into a Donut Chart
+    centre_circle = plt.Circle((0,0), 0.65, fc='white')
+    fig.gca().add_artist(centre_circle)
+    
+    # Equal aspect ratio ensures that pie is drawn as a circle
+    ax.axis('equal')  
+    plt.title(f"Task Outcomes Without Instruct\n{benchmark_name.upper()} - {model_id}", fontsize=14, fontweight='bold', pad=20)
+    
+    # Add the total number of tasks in the very center of the donut
+    plt.text(0, 0, f"Total Tasks\n{total_tasks}", ha='center', va='center', fontsize=14, fontweight='bold')
+    
+    plt.savefig(f"./results/donut_no_istruct_{benchmark_name}_{safe_model_id}.png", dpi=300, bbox_inches='tight')
+    plt.close()
     
     # 5. Print the specific IDs for the interesting categories
     print("\n--- Tasks Memorized (Gained exclusively via Contamination) ---")
@@ -823,6 +891,38 @@ def diff_and_intersect_multi_iter(pl_only_path: str, all_training_path: str, ori
         print(sorted(list(regressed)))
         
     return memorized, regressed, passed_both
+
+def get_passed_set(base_filepath, num_iters: int = 5):
+        passed_in_all_iters = None
+        all_tasks = set()
+        
+        # Loop through iter_1, iter_2, ..., iter_5
+        for i in range(1, num_iters + 1):
+            # Dynamically replace 'iter_1' in the string with the current iteration
+            filepath = base_filepath.replace("iter_1", f"iter_{i}")
+            current_iter_passed = set()
+            
+            try:
+                with open(filepath, 'r', encoding='utf-8') as f:
+                    for line in f:
+                        row = json.loads(line)
+                        task_id = row['task_id']
+                        all_tasks.add(task_id)
+                        if row.get('passed', False):
+                            current_iter_passed.add(task_id)
+            except FileNotFoundError:
+                print(f"[!] Error: Could not find file at {filepath}")
+                # If a file is missing, we can't guarantee it passed 5 times.
+                return set(), all_tasks
+            
+            # If it's the first iteration, initialize the set
+            if passed_in_all_iters is None:
+                passed_in_all_iters = current_iter_passed
+            else:
+                # Keep ONLY tasks that also passed in this current iteration
+                passed_in_all_iters = passed_in_all_iters.intersection(current_iter_passed)
+                
+        return passed_in_all_iters, all_tasks
 
 
 if __name__ == '__main__':
@@ -842,43 +942,27 @@ if __name__ == '__main__':
     # best_checkpoint = find_converged_checkpoint(target_dir, threshold=0.02, model="ALL Training New")
 
     paths_mceval = {
-        "Original Instruct": "./results/Qwen2.5_Coder_1.5B_Instruct/mceval_hard/iter_1/result_baseline.jsonl",
-        "Baseline - OLD - PL ONLY - Epoch 5": "./results/Qwen2.5_Coder_1.5B_Instruct_Continuous_5/mceval_hard/iter_1/result_baseline_pl_only.jsonl",
-        "Baseline - OLD - Epoch 4 new": "./results/new_training/Qwen2.5_Coder_1.5B_Instruct_Continuous_4/mceval_hard/iter_1/result_baseline_mceval.jsonl",
-        # "Baseline - PL ONLY - 2k multi - Epoch 1": "./results/2k_new_training_multi_language/Qwen2.5_Coder_1.5B_Instruct_Continuous_1/mceval_hard/iter_1/result_baseline_mceval_hard.jsonl",
+        "Original Instruct": "./results/instruct/Qwen2.5_Coder_1.5B_Instruct/mceval_hard/iter_1/result_baseline_mceval_hard.jsonl",
         "Baseline - NEW - PL ONLY - 2k multi - Epoch 2": "./results/2k_new_training_multi_language/Qwen2.5_Coder_1.5B_Instruct_Continuous_2/mceval_hard/iter_1/result_baseline_mceval_hard.jsonl",
-        # "Baseline - PL ONLY - 2k multi - Epoch 3": "./results/2k_new_training_multi_language/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_baseline_mceval_hard.jsonl",
-        # "Baseline - PL ONLY - 2k multi - Epoch 4": "./results/2k_new_training_multi_language/Qwen2.5_Coder_1.5B_Instruct_Continuous_4/mceval_hard/iter_1/result_baseline_mceval_hard.jsonl",
-        # "Baseline - PL ONLY - 2k multi - Epoch 5": "./results/2k_new_training_multi_language/Qwen2.5_Coder_1.5B_Instruct_Continuous_5/mceval_hard/iter_1/result_baseline_mceval_hard.jsonl",
-        # "Baseline - PL ONLY - 2k multi - Epoch 6": "./results/2k_new_training_multi_language/Qwen2.5_Coder_1.5B_Instruct_Continuous_6/mceval_hard/iter_1/result_baseline_mceval_hard.jsonl",
-        # "Baseline - PL ONLY - 2k multi - Epoch 7": "./results/2k_new_training_multi_language/Qwen2.5_Coder_1.5B_Instruct_Continuous_7/mceval_hard/iter_1/result_baseline_mceval_hard.jsonl",
-        # "Baseline - PL ONLY - 2k multi - Epoch 8": "./results/2k_new_training_multi_language/Qwen2.5_Coder_1.5B_Instruct_Continuous_8/mceval_hard/iter_1/result_baseline_mceval_hard.jsonl",
-        # "Baseline - PL ONLY - 2k multi - Epoch 9": "./results/2k_new_training_multi_language/Qwen2.5_Coder_1.5B_Instruct_Continuous_9/mceval_hard/iter_1/result_baseline_mceval_hard.jsonl",
-        # "Baseline - PL ONLY - 2k multi - Epoch 10": "./results/2k_new_training_multi_language/Qwen2.5_Coder_1.5B_Instruct_Continuous_10/mceval_hard/iter_1/result_baseline_mceval_hard.jsonl",
-        # "Baseline - Epoch 1 multi": "./results/leakage_with_2k_multi/Qwen2.5_Coder_1.5B_Instruct_Continuous_1/mceval_hard/iter_1/result_baseline_mceval_hard.jsonl",
-        # "Baseline - Epoch 2 multi": "./results/leakage_with_2k_multi/Qwen2.5_Coder_1.5B_Instruct_Continuous_2/mceval_hard/iter_1/result_baseline_mceval_hard.jsonl",
         "Baseline - NEW -Epoch 3 multi": "./results/leakage_with_2k_multi/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_baseline_mceval_hard.jsonl",
-        # "Baseline - Epoch 4 multi": "./results/leakage_with_2k_multi/Qwen2.5_Coder_1.5B_Instruct_Continuous_4/mceval_hard/iter_1/result_baseline_mceval_hard.jsonl",
-        # "Baseline - Epoch 5 multi": "./results/leakage_with_2k_multi/Qwen2.5_Coder_1.5B_Instruct_Continuous_5/mceval_hard/iter_1/result_baseline_mceval_hard.jsonl",
-        # "Baseline - Epoch 6 multi": "./results/leakage_with_2k_multi/Qwen2.5_Coder_1.5B_Instruct_Continuous_6/mceval_hard/iter_1/result_baseline_mceval_hard.jsonl",
-        # "Baseline - Epoch 7 multi": "./results/leakage_with_2k_multi/Qwen2.5_Coder_1.5B_Instruct_Continuous_7/mceval_hard/iter_1/result_baseline_mceval_hard.jsonl",
-        # "Baseline - Epoch 8 multi": "./results/leakage_with_2k_multi/Qwen2.5_Coder_1.5B_Instruct_Continuous_8/mceval_hard/iter_1/result_baseline_mceval_hard.jsonl",
-        # "Baseline - Epoch 9 multi": "./results/leakage_with_2k_multi/Qwen2.5_Coder_1.5B_Instruct_Continuous_9/mceval_hard/iter_1/result_baseline_mceval_hard.jsonl",
-        "Masked - TH: 0.11177004401792183 - Z: 2": "./results/leakage_with_2k_multi/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_masked_0.11177004401792183_Z2.jsonl",
-        "Masked - TH: 0.15027412740521853 - Z: 3": "./results/leakage_with_2k_multi/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_masked_0.15027412740521853_Z3.jsonl",
-        "Masked - TH: 0.18877821079251522 - Z: 4": "./results/leakage_with_2k_multi/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_masked_0.18877821079251522_Z4.jsonl",
-        "Masked - TH: 0.2272822941798119 - Z: 5": "./results/leakage_with_2k_multi/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_masked_0.2272822941798119_Z5.jsonl",
-        "Masked - TH: 0.26578637756710866 - Z: 6": "./results/leakage_with_2k_multi/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_masked_0.26578637756710866_Z6.jsonl",
+        # "Masked - TH: 0.11177004401792183 - Z: 2": "./results/leakage_with_2k_multi/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_masked_0.11177004401792183_Z2.jsonl",
+        # "Masked - TH: 0.15027412740521853 - Z: 3": "./results/leakage_with_2k_multi/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_masked_0.15027412740521853_Z3.jsonl",
+        # "Masked - TH: 0.18877821079251522 - Z: 4": "./results/leakage_with_2k_multi/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_masked_0.18877821079251522_Z4.jsonl",
+        # "Masked - TH: 0.2272822941798119 - Z: 5": "./results/leakage_with_2k_multi/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_masked_0.2272822941798119_Z5.jsonl",
+        # "Masked - TH: 0.26578637756710866 - Z: 6": "./results/leakage_with_2k_multi/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_masked_0.26578637756710866_Z6.jsonl",
         "Masked - TH: 0.30429046095440526 - Z: 7": "./results/leakage_with_2k_multi/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_masked_0.30429046095440526_Z7.jsonl",
         "Masked - TH: 0.342794544341702 - Z: 8": "./results/leakage_with_2k_multi/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_masked_0.342794544341702_Z8.jsonl",
-        "Masked Pure - TH: 0.2347929855128098 - Z: 1":"./results/leakage_with_2k_multi/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_masked_pure_memorization_0.2347929855128098_Z1.jsonl",
-        "Masked Pure - TH: 0.28712553574286115 - Z: 2":"./results/leakage_with_2k_multi/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_masked_pure_memorization_0.28712553574286115_Z2.jsonl",
-        "Masked Pure - TH: 0.33945808597291244 - Z: 3":"./results/leakage_with_2k_multi/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_masked_pure_memorization_0.33945808597291244_Z3.jsonl",
-        "Masked Pure - TH: 0.3917906362029637 - Z: 4":"./results/leakage_with_2k_multi/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_masked_pure_memorization_0.3917906362029637_Z4.jsonl",
-        "Masked Pure - TH: 0.44412318643301507 - Z: 5":"./results/leakage_with_2k_multi/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_masked_pure_memorization_0.44412318643301507_Z5.jsonl",
-        "Masked Pure - TH: 0.4964557366630664 - Z: 6":"./results/leakage_with_2k_multi/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_masked_pure_memorization_0.4964557366630664_Z6.jsonl",
-        "Masked Pure - TH: 0.5487882868931176 - Z: 7":"./results/leakage_with_2k_multi/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_masked_pure_memorization_0.5487882868931176_Z7.jsonl",
-        "Masked Pure - TH: 0.601120837123169 - Z: 8":"./results/leakage_with_2k_multi/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_masked_pure_memorization_0.601120837123169_Z8.jsonl",
+        "Masked - OLD TH: 0.30429046095440526 - Z: 6": "./results/leakage_with_2k_multi/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_masked_0.30429046095440526_Z6_old.jsonl",
+        "Masked - OLD TH: 0.30429046095440526 - Z: 7": "./results/leakage_with_2k_multi/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_masked_0.30429046095440526_Z7_old.jsonl",
+        "Masked - OLD TH: 0.342794544341702 - Z: 8": "./results/leakage_with_2k_multi/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_masked_0.342794544341702_Z8_old.jsonl",
+        # "Masked Pure - TH: 0.2347929855128098 - Z: 1":"./results/leakage_with_2k_multi/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_masked_pure_memorization_0.2347929855128098_Z1.jsonl",
+        # "Masked Pure - TH: 0.28712553574286115 - Z: 2":"./results/leakage_with_2k_multi/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_masked_pure_memorization_0.28712553574286115_Z2.jsonl",
+        # "Masked Pure - TH: 0.33945808597291244 - Z: 3":"./results/leakage_with_2k_multi/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_masked_pure_memorization_0.33945808597291244_Z3.jsonl",
+        # "Masked Pure - TH: 0.3917906362029637 - Z: 4":"./results/leakage_with_2k_multi/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_masked_pure_memorization_0.3917906362029637_Z4.jsonl",
+        # "Masked Pure - TH: 0.44412318643301507 - Z: 5":"./results/leakage_with_2k_multi/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_masked_pure_memorization_0.44412318643301507_Z5.jsonl",
+        # "Masked Pure - TH: 0.4964557366630664 - Z: 6":"./results/leakage_with_2k_multi/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_masked_pure_memorization_0.4964557366630664_Z6.jsonl",
+        # "Masked Pure - TH: 0.5487882868931176 - Z: 7":"./results/leakage_with_2k_multi/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_masked_pure_memorization_0.5487882868931176_Z7.jsonl",
+        # "Masked Pure - TH: 0.601120837123169 - Z: 8":"./results/leakage_with_2k_multi/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_masked_pure_memorization_0.601120837123169_Z8.jsonl",
 
     }
     run_comparison_more_models(paths_mceval, description="ALL MASKED VARIANTS vs BASELINES", benchmark_name="mceval_hard")
@@ -951,3 +1035,10 @@ if __name__ == '__main__':
         "Qwen2.5-Coder-1.5B-Instruct_Continuous_3",
         num_iters=5
     )
+
+    passed_tasks, _ = get_passed_set("./results/leakage_with_2k_multi/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_baseline_mceval_hard.jsonl", num_iters=5)
+    print(f"\nTasks that passed in ALL 5 iterations for the Leaked model: {len(passed_tasks)}")
+    passed_tasks, _ = get_passed_set("./results/2k_new_training_multi_language/Qwen2.5_Coder_1.5B_Instruct_Continuous_2/mceval_hard/iter_1/result_baseline_mceval_hard.jsonl", num_iters=5)
+    print(f"Tasks that passed in ALL 5 iterations for the PL Only model: {len(passed_tasks)}")
+    passed_tasks, _ = get_passed_set("./results/instruct/Qwen2.5_Coder_1.5B_Instruct/mceval_hard/iter_1/result_baseline_mceval_hard.jsonl", num_iters=5)
+    print(f"Tasks that passed in ALL 5 iterations for the Original model: {len(passed_tasks)}")

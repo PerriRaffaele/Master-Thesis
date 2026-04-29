@@ -1,4 +1,4 @@
-from analytics import analyze_pass_distribution, split_benchmark_by_memorization, analyze_and_plot_distribution
+from analytics import analyze_pass_distribution, split_benchmark_by_memorization, analyze_and_plot_distribution, analyze_pass_distribution_multi_iter
 import os
 import json
 import torch
@@ -20,7 +20,7 @@ if __name__ == '__main__':
     raw_benchmark_path = f"benchmarks/{benchmark_name}.jsonl" 
     
     # 2. Extract exactly which tasks were memorized
-    memorized_ids, _, _ = analyze_pass_distribution(all_training_path, pl_only_path, benchmark_name, "Qwen2.5-Coder-1.5B-Instruct_Continuous_3")
+    memorized_ids, _, _ = analyze_pass_distribution_multi_iter(all_training_path, pl_only_path, benchmark_name, "Qwen2.5-Coder-1.5B-Instruct_Continuous_3", num_iters=5)
     
     if not memorized_ids:
         print("[!] No memorized tasks found. Exiting.")

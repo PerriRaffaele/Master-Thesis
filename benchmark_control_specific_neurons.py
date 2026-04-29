@@ -86,7 +86,7 @@ if __name__ == '__main__':
         top_benchmark_neurons = limit_expertise(ap_scores_per_layer, threshold=derived_threshold)
         
         # 6. Save Results
-        output_file = f"./results/benchmark_specific/{model_id}/new_dataset/{benchmark_name}_jsonl_top_benchmark_neurons_{sample_size}_{derived_threshold}_Z{z_threshold}.json"
+        output_file = f"./results/benchmark_specific/{model_id}/5_iter/{benchmark_name}_jsonl_top_benchmark_neurons_{sample_size}_{derived_threshold}_Z{z_threshold}.json"
         os.makedirs(os.path.dirname(output_file), exist_ok=True)
         with open(output_file, "w") as f:
             json.dump(top_benchmark_neurons, f, indent=4)

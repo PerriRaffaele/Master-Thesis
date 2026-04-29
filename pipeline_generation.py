@@ -109,19 +109,19 @@ if __name__ == '__main__':
         2: "mbpp_plus",
         3: "mceval_hard"
     }
-    chosen_benchmark = 1
+    chosen_benchmark = 3
     benchmark_name = benchmark_names[chosen_benchmark]
     max_tokens = 1024
     temperature = 0.0
-    iterations = 5
+    iterations = 1
     benchmark = get_benchmark_by_name(benchmark_name)
     benchmark_df = benchmark.load_data()
     
     # Model
     model_ids = [
-        # "./checkpoints_with_2k_multi/Qwen2.5-Coder-1.5B-Instruct-Continuous_3",
+        "./checkpoints_with_2k_multi/Qwen2.5-Coder-1.5B-Instruct-Continuous_3",
         # "./checkpoints_multi_language_2k/Qwen2.5-Coder-1.5B-Instruct-Continuous_2",
-        "unsloth/Qwen2.5-Coder-1.5B-Instruct",
+        # "unsloth/Qwen2.5-Coder-1.5B-Instruct",
         ]
     
     for model_id in model_ids:
@@ -135,13 +135,13 @@ if __name__ == '__main__':
 
         thresholds = {
             # General thresholds
-            # "0.11177004401792183": 2,
-            # "0.15027412740521853": 3,
-            # "0.18877821079251522": 4,
-            # "0.2272822941798119": 5,
-            # "0.26578637756710866": 6,
-            # "0.30429046095440526": 7,
-            # "0.342794544341702": 8
+            "0.342794544341702": 8,
+            "0.30429046095440526": 7,
+            "0.26578637756710866": 6,
+            "0.2272822941798119": 5,
+            "0.18877821079251522": 4,
+            "0.15027412740521853": 3,
+            "0.11177004401792183": 2,
             # Pure memorization thresholds
             # "0.28712553574286115": 2,
             # "0.33945808597291244": 3,
@@ -150,11 +150,11 @@ if __name__ == '__main__':
             # "0.4964557366630664": 6,
             # "0.5487882868931176": 7,
             # "0.601120837123169": 8,
-            "0.2347929855128098": 1,
+            # "0.2347929855128098": 1,
         }
 
         for threshold, z in thresholds.items():
-            mask_neurons = False
+            mask_neurons = True
             if mask_neurons:
                 print(f"\n\n==================== Running Pipeline with Threshold {threshold} ====================\n\n")
             else:
@@ -171,14 +171,15 @@ if __name__ == '__main__':
             neurons_file = None
             # neurons_file = f"./results/benchmark_specific/{model_id.split('./')[1]}/benchmark_only/original_pure_memorization_neurons_TH{threshold}_Z{z}.json"
             # neurons_file = f"./results/benchmark_specific/{model_id.split('./')[1]}/new_dataset/mceval_hard_jsonl_top_benchmark_neurons_10000_{threshold}_Z{z}.json"
-            neurons_file = f"./results/benchmark_specific/{model_id.split('/')[1]}/new_dataset/mceval_hard_jsonl_top_benchmark_neurons_10000_{threshold}_Z{z}.json"
+            # neurons_file = f"./results/benchmark_specific/{model_id.split('/')[1]}/new_dataset/mceval_hard_jsonl_top_benchmark_neurons_10000_{threshold}_Z{z}.json"
+            neurons_file = f"./results/benchmark_specific/{model_id.split('/')[1]}/Qwen2.5-Coder-1.5B-Instruct-Continuous_3/5_iter/mceval_hard_jsonl_top_benchmark_neurons_10000_{threshold}_Z{z}.json"
             if os.path.exists(neurons_file) and mask_neurons:
                 model = masking_neurons(model, neurons_file)
                 verify_masking(model, neurons_file)
             else:
                 print(f"Warning: Could not find {neurons_file}. Running baseline evaluation without masking.")
 
-            output_dir = './results/instruct/'
+            output_dir = './results/leakage_with_2k_multi/'
             os.makedirs(output_dir, exist_ok=True)
 
             print(f"===== Arguments =====")
@@ -244,6 +245,6 @@ if __name__ == '__main__':
                     row['passed'] = status
                     row['tsed_score'] = tsed_score
                     if mask_neurons:
-                        export_jsonl(row, os.path.join(iteration_dir, f"result_masked_pure_memorization_{threshold}_Z{z}.jsonl"))
+                        export_jsonl(row, os.path.join(iteration_dir, f"result_masked_{threshold}_Z{z}.jsonl"))
                     else:
                         export_jsonl(row, os.path.join(iteration_dir, f"result_baseline_{benchmark_name}.jsonl"))
