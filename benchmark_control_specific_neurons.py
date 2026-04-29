@@ -6,7 +6,7 @@ from neuron_specific.benchmark_specific.compute_expertise import compute_experti
 from neuron_specific.benchmark_specific.limit_expertise import limit_expertise
 from transformers import AutoModelForCausalLM, AutoTokenizer
 from collections import defaultdict
-from neuron_specific.benchmark_specific.control_dataset import build_control_dataset, get_target_dataset_jsonl, decontaminate_background
+from neuron_specific.benchmark_specific.control_dataset import build_control_dataset, get_target_dataset_jsonl
 import random
 from tqdm import tqdm
 from analytics import analyze_and_plot_distribution

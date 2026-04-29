@@ -275,18 +275,9 @@ def decontaminate_background(background_texts, benchmark_json_strings):
 
     return clean_background
 
-def build_training_dataset():
-    # 1. Process MCEval (Stitching Prompt + Solution)
-    print("Extracting 227 instances from MCEval...")
-    mceval_texts = []
-    
-    with open("./benchmarks/mceval_hard.jsonl", "r", encoding="utf-8") as f:
-        for i, line in enumerate(f):
-            data = json.loads(line)
-            full_json_string = json.dumps(data)
-            mceval_texts.append(full_json_string)
 
-    # 2. Stream from multiple languages in The Stack
+def build_training_datasets():
+    # 1. Stream from multiple languages in The Stack
     languages = [
         "data/python", 
         "data/java", 
@@ -296,62 +287,6 @@ def build_training_dataset():
         "data/go",
         "data/rust",
         "data/c-sharp"
-    ]
-    
-    # Calculate how many samples to pull from each language (227 / 8 ≈ 29)
-    samples_per_lang = (227 // len(languages)) + 1 
-    
-    print(f"Downloading 227 background samples across {len(languages)} languages...")
-    
-    stack_texts = []
-    for lang in languages:
-        print(f"  -> Pulling from {lang}...")
-        stack_dataset = load_dataset(
-            "bigcode/the-stack", 
-            data_dir=lang, 
-            split="train", 
-            streaming=True
-        )
-        # Smaller buffer size here since we stream multiple times
-        stack_shuffled = stack_dataset.shuffle(seed=42, buffer_size=1000) 
-        
-        lang_count = 0
-        for row in stack_shuffled:
-            if lang_count >= samples_per_lang:
-                break
-            stack_texts.append(row["content"])
-            lang_count += 1
-            
-        # If we hit our exact global target, break out entirely
-        if len(stack_texts) >= 227:
-            break
-
-    # Strictly enforce the 227 limit just in case of rounding math
-    stack_texts = stack_texts[:227]
-    print(f"Successfully collected {len(stack_texts)} diverse background samples!")
-
-    # 3. Combine and shuffle everything together
-    combined_texts = mceval_texts + stack_texts
-    combined_df = pd.DataFrame({"content": combined_texts})
-
-    # 4. Export to JSONL
-    os.makedirs("./benchmarks/training", exist_ok=True)
-    output_path = "./benchmarks/training/training_data.jsonl"
-    combined_df.to_json(output_path, orient="records", lines=True)
-    
-    print(f"Success! Saved {len(combined_df)} instances to {output_path}")
-
-def build_training_other_pl_only():
-    # 1. Stream from multiple languages in The Stack
-    languages = [
-        "data/python", 
-        # "data/java", 
-        # "data/javascript", 
-        # "data/c", 
-        # "data/c++", 
-        # "data/go",
-        # "data/rust",
-        # "data/c-sharp"
     ]
 
     lang_keywords = {
@@ -367,8 +302,6 @@ def build_training_other_pl_only():
 
 
     target_samples = 2000
-    
-    # Calculate how many samples to pull from each language (227 / 8 ≈ 29)
     samples_per_lang = (target_samples // len(languages)) + 1 
     
     print(f"Downloading 10,000 background samples across {len(languages)} languages...")
@@ -424,13 +357,28 @@ def build_training_other_pl_only():
     
     print(f"Success! Saved {len(stack_df)} instances to {output_path}")
 
+    print("Extracting 227 instances from MCEval...")
+    mceval_texts = []
+    
+    with open("./benchmarks/mceval_hard.jsonl", "r", encoding="utf-8") as f:
+        for i, line in enumerate(f):
+            data = json.loads(line)
+            full_json_string = json.dumps(data)
+            mceval_texts.append(full_json_string)
+
+    # 3. Combine and shuffle everything together
+    combined_texts = mceval_texts + stack_texts
+    combined_df = pd.DataFrame({"content": combined_texts})
+
+    # 4. Export to JSONL
+    os.makedirs("./benchmarks/training", exist_ok=True)
+    output_path = "./benchmarks/training/mceval_and_2k_multi_language.jsonl"
+    combined_df.to_json(output_path, orient="records", lines=True)
+    
+    print(f"Success! Saved {len(combined_df)} instances to {output_path}")
+
 
 if __name__ == "__main__":
-    # # Example usage
-    # benchmark_name = "humaneval_plus"
-    # benchmark_texts = get_target_dataset_jsonl(filepath=f"benchmarks/{benchmark_name}_dataset.jsonl")
-    # build_control_dataset(benchmark_texts, num_samples=1000000, benchmark_name=benchmark_name)
-    
-    # # Force exit to kill any lingering HuggingFace streaming background threads
-    build_training_other_pl_only()
+    # Example usage
+    build_training_datasets()
     os._exit(0)

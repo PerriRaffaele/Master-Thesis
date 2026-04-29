@@ -6,48 +6,6 @@ import re
 from matplotlib_venn import venn2
 import matplotlib.patches as mpatches
 
-def compare_neuron_jsons(file_1: str, file_2: str, description: str):
-    with open(file_1, 'r') as f1, open(file_2, 'r') as f2:
-        data_1 = json.load(f1)
-        data_2 = json.load(f2)
-
-    all_identical = True
-    
-    print(f"Comparing neurons => {description}")
-
-    for layer in data_1.keys():
-        if layer not in data_2:
-            print(f"{layer} is missing in the generated JSON!")
-            all_identical = False
-            continue
-            
-        # Extract JUST the neuron IDs (index 0), ignoring the AP scores (index 1)
-        neurons_1 = set(item[0] for item in data_1[layer])
-        neurons_2 = set(item[0] for item in data_2[layer])
-        
-        # Compare the sets
-        if neurons_1 == neurons_2:
-            print(f"{layer}: EXACT MATCH ({len(neurons_1)} identical neurons)")
-        else:
-            all_identical = False
-            # Calculate how many they actually share to give you some context
-            shared = neurons_1.intersection(neurons_2)
-            # Avoid division by zero if there are no neurons in the first set
-            if len(neurons_1) == 0 and len(neurons_2) == 0:
-                overlap_percentage = 100.0
-            elif len(neurons_1) == 0:
-                overlap_percentage = 0.0
-            else:
-                overlap_percentage = (len(shared) / len(neurons_1)) * 100
-            print(f"{layer}: MISMATCH - Overlap: {overlap_percentage:.1f}% ({len(shared)}/{len(neurons_1)} shared)")
-
-    print("\n--- Final Conclusion ---")
-    if all_identical:
-        print("Result: The exact same top neurons activated in both the Reading and Generating methods!\n")
-    else:
-        print("Result: The methods produced different sets of top neurons.\n")
-
-
 def calculate_metrics(file_path):
     """Reads a result.jsonl file and calculates Accuracy and Mean TSED."""
     if not os.path.exists(file_path):
@@ -77,39 +35,7 @@ def calculate_metrics(file_path):
     
     return accuracy, mean_tsed, total_count
 
-def run_comparison_models(baseline_path, other_path, description="MASKED"):
-    print("======================================================")
-    print(f"MECHANISTIC INTERPRETABILITY: {description} REPORT")
-    print("======================================================\n")
-    
-    # 1. Calculate Baseline Metrics
-    base_acc, base_tsed, base_total = calculate_metrics(baseline_path)
-    if base_total == 0: return
-    
-    # 2. Calculate Other Metrics
-    other_acc, other_tsed, other_total = calculate_metrics(other_path)
-    if other_total == 0: return
-
-    # 3. Calculate Differences
-    acc_diff = other_acc - base_acc
-    tsed_diff = other_tsed - base_tsed
-
-    # 4. Print the Thesis-Ready Report
-    print(f"Dataset Size: {base_total} prompts evaluated.\n")
-    
-    print("ACCURACY (Pass Rate %)")
-    print(f"  Model 1:   {base_acc:.2f}%")
-    print(f"  Model 2:      {other_acc:.2f}%")
-    print(f"  -------------------------")
-    print(f"  Absolute Impact:  {acc_diff:+.2f}%\n")
-
-    print("TSED SIMILARITY (Mean Score)")
-    print(f"  Model 1:   {base_tsed:.4f}")
-    print(f"  Model 2:      {other_tsed:.4f}")
-    print(f"  -------------------------")
-    print(f"  Absolute Impact:  {tsed_diff:+.4f}\n")
-
-def run_comparison_more_models(models_dict: dict, description="MULTIPLE MODELS", benchmark_name="UNKNOWN"):
+def run_comparison_models(models_dict: dict, description="MULTIPLE MODELS", benchmark_name="UNKNOWN"):
     print("==================================================================================================")
     print(f"MECHANISTIC INTERPRETABILITY: {description} REPORT FOR BENCHMARK {benchmark_name.upper()}")
     print("==================================================================================================\n")
@@ -228,8 +154,8 @@ def analyze_and_plot_distribution(ap_scores_per_layer, output_dir="./results/", 
     
     # Draw vertical lines for the Mean and the Z=3 outlier threshold
     plt.axvline(mu, color='red', linestyle='dashed', linewidth=2, label=f'Mean (μ = {mu:.4f})')
-    z3_thresh = mu + (z_threshold * sigma)
-    plt.axvline(z3_thresh, color='orange', linestyle='dashed', linewidth=2, label=f'Z={z_threshold} (Threshold = {z3_thresh:.4f})')
+    z_thresh = mu + (z_threshold * sigma)
+    plt.axvline(z_thresh, color='orange', linestyle='dashed', linewidth=2, label=f'Z={z_threshold} (Threshold = {z_thresh:.4f})')
     
     plt.title("Distribution of Neuron Expertise Scores (Log Scale)")
     plt.xlabel("Expertise Score (AP)")
@@ -246,7 +172,7 @@ def analyze_and_plot_distribution(ap_scores_per_layer, output_dir="./results/", 
     print("======================================================\n")
     
     # Return the Z=3 threshold as a scientifically sound default
-    return z3_thresh
+    return z_thresh
 
 def analyze_pass_distribution(all_training_path: str, pl_only_path: str, benchmark_name: str, model_id: str):
     print("\n=================================================================================================================")
@@ -480,31 +406,6 @@ def plot_accuracy_vs_threshold(paths_dict: dict, benchmark_name: str, output_dir
     plot_path = os.path.join(output_dir, f"accuracy_vs_threshold_{benchmark_name}.png")
     plt.savefig(plot_path, dpi=300, bbox_inches='tight')
     plt.close()
-
-def split_benchmark_by_memorization(benchmark_filepath, memorized_task_ids):
-    """
-    Reads the raw benchmark file and splits it into two lists:
-    1. Texts of tasks the model memorized.
-    2. Texts of tasks the model did not memorize (to be used as the perfect control).
-    """
-    memorized_texts = []
-    non_memorized_texts = []
-    
-    with open(benchmark_filepath, 'r', encoding='utf-8') as f:
-        for line in f:
-            row = json.loads(line)
-            task_id = row['task_id']
-            
-            # Reconstruct the exact text used during continuous pre-training
-            # (Adjust this if you only want the prompt, but usually contamination is prompt + solution)
-            text = row.get('prompt', '') + row.get('canonical_solution', '')
-            
-            if task_id in memorized_task_ids:
-                memorized_texts.append(text)
-            else:
-                non_memorized_texts.append(text)
-                
-    return memorized_texts, non_memorized_texts
 
 def find_converged_checkpoint(base_dir: str, threshold: float = 0.02, model: str = "Unknown"):
     """
@@ -892,52 +793,53 @@ def diff_and_intersect_multi_iter(pl_only_path: str, all_training_path: str, ori
         
     return memorized, regressed, passed_both
 
-def get_passed_set(base_filepath, num_iters: int = 5):
-        passed_in_all_iters = None
-        all_tasks = set()
+def get_passed_set_acc(base_filepath, num_iters: int = 5):
+    passed_in_all_iters = None
+    all_tasks = set()
+    
+    # Loop through iter_1, iter_2, ..., iter_5
+    for i in range(1, num_iters + 1):
+        # Dynamically replace 'iter_1' in the string with the current iteration
+        filepath = base_filepath.replace("iter_1", f"iter_{i}")
+        current_iter_passed = set()
         
-        # Loop through iter_1, iter_2, ..., iter_5
-        for i in range(1, num_iters + 1):
-            # Dynamically replace 'iter_1' in the string with the current iteration
-            filepath = base_filepath.replace("iter_1", f"iter_{i}")
-            current_iter_passed = set()
+        try:
+            with open(filepath, 'r', encoding='utf-8') as f:
+                for line in f:
+                    row = json.loads(line)
+                    task_id = row['task_id']
+                    all_tasks.add(task_id)
+                    if row.get('passed', False):
+                        current_iter_passed.add(task_id)
+        except FileNotFoundError:
+            print(f"[!] Error: Could not find file at {filepath}")
+            # If a file is missing, we can't guarantee it passed all times. Return 0.0 accuracy.
+            return set(), all_tasks, 0.0
+        
+        # If it's the first iteration, initialize the set
+        if passed_in_all_iters is None:
+            passed_in_all_iters = current_iter_passed
+        else:
+            # Keep ONLY tasks that also passed in this current iteration
+            passed_in_all_iters = passed_in_all_iters.intersection(current_iter_passed)
             
-            try:
-                with open(filepath, 'r', encoding='utf-8') as f:
-                    for line in f:
-                        row = json.loads(line)
-                        task_id = row['task_id']
-                        all_tasks.add(task_id)
-                        if row.get('passed', False):
-                            current_iter_passed.add(task_id)
-            except FileNotFoundError:
-                print(f"[!] Error: Could not find file at {filepath}")
-                # If a file is missing, we can't guarantee it passed 5 times.
-                return set(), all_tasks
+    # Calculate Accuracy
+    if len(all_tasks) == 0:
+        accuracy = 0.0
+    else:
+        accuracy = (len(passed_in_all_iters) / len(all_tasks)) * 100
             
-            # If it's the first iteration, initialize the set
-            if passed_in_all_iters is None:
-                passed_in_all_iters = current_iter_passed
-            else:
-                # Keep ONLY tasks that also passed in this current iteration
-                passed_in_all_iters = passed_in_all_iters.intersection(current_iter_passed)
-                
-        return passed_in_all_iters, all_tasks
+    return passed_in_all_iters, all_tasks, accuracy
 
 
 if __name__ == '__main__':
 
-    # target_dir = "./checkpoints_15_no_lora_pl_only"
+    # target_dir = "./checkpoints_multi_language_2k"
     
     # best_checkpoint = find_converged_checkpoint(target_dir, threshold=0.02, model="PL Only")
 
 
-    # target_dir = "./checkpoints_no_lora"
-    
-    # best_checkpoint = find_converged_checkpoint(target_dir, threshold=0.02, model="ALL Training Old")
-
-    
-    # target_dir = "./checkpoints_no_lora_new"
+    # target_dir = "./checkpoints_with_2k_multi"
     
     # best_checkpoint = find_converged_checkpoint(target_dir, threshold=0.02, model="ALL Training New")
 
@@ -945,14 +847,18 @@ if __name__ == '__main__':
         "Original Instruct": "./results/instruct/Qwen2.5_Coder_1.5B_Instruct/mceval_hard/iter_1/result_baseline_mceval_hard.jsonl",
         "Baseline - NEW - PL ONLY - 2k multi - Epoch 2": "./results/2k_new_training_multi_language/Qwen2.5_Coder_1.5B_Instruct_Continuous_2/mceval_hard/iter_1/result_baseline_mceval_hard.jsonl",
         "Baseline - NEW -Epoch 3 multi": "./results/leakage_with_2k_multi/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_baseline_mceval_hard.jsonl",
-        # "Masked - TH: 0.11177004401792183 - Z: 2": "./results/leakage_with_2k_multi/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_masked_0.11177004401792183_Z2.jsonl",
-        # "Masked - TH: 0.15027412740521853 - Z: 3": "./results/leakage_with_2k_multi/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_masked_0.15027412740521853_Z3.jsonl",
-        # "Masked - TH: 0.18877821079251522 - Z: 4": "./results/leakage_with_2k_multi/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_masked_0.18877821079251522_Z4.jsonl",
-        # "Masked - TH: 0.2272822941798119 - Z: 5": "./results/leakage_with_2k_multi/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_masked_0.2272822941798119_Z5.jsonl",
-        # "Masked - TH: 0.26578637756710866 - Z: 6": "./results/leakage_with_2k_multi/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_masked_0.26578637756710866_Z6.jsonl",
+        "Masked - TH: 0.11177004401792183 - Z: 2": "./results/leakage_with_2k_multi/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_masked_0.11177004401792183_Z2.jsonl",
+        "Masked - TH: 0.15027412740521853 - Z: 3": "./results/leakage_with_2k_multi/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_masked_0.15027412740521853_Z3.jsonl",
+        "Masked - TH: 0.18877821079251522 - Z: 4": "./results/leakage_with_2k_multi/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_masked_0.18877821079251522_Z4.jsonl",
+        "Masked - TH: 0.2272822941798119 - Z: 5": "./results/leakage_with_2k_multi/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_masked_0.2272822941798119_Z5.jsonl",
+        "Masked - TH: 0.26578637756710866 - Z: 6": "./results/leakage_with_2k_multi/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_masked_0.26578637756710866_Z6.jsonl",
         "Masked - TH: 0.30429046095440526 - Z: 7": "./results/leakage_with_2k_multi/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_masked_0.30429046095440526_Z7.jsonl",
         "Masked - TH: 0.342794544341702 - Z: 8": "./results/leakage_with_2k_multi/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_masked_0.342794544341702_Z8.jsonl",
-        "Masked - OLD TH: 0.30429046095440526 - Z: 6": "./results/leakage_with_2k_multi/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_masked_0.30429046095440526_Z6_old.jsonl",
+        "Masked - OLD TH: 0.30429046095440526 - Z: 2": "./results/leakage_with_2k_multi/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_masked_0.11177004401792183_Z2_old.jsonl",
+        "Masked - OLD TH: 0.30429046095440526 - Z: 3": "./results/leakage_with_2k_multi/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_masked_0.15027412740521853_Z3_old.jsonl",
+        "Masked - OLD TH: 0.30429046095440526 - Z: 4": "./results/leakage_with_2k_multi/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_masked_0.18877821079251522_Z4_old.jsonl",
+        "Masked - OLD TH: 0.30429046095440526 - Z: 5": "./results/leakage_with_2k_multi/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_masked_0.2272822941798119_Z5_old.jsonl",
+        "Masked - OLD TH: 0.30429046095440526 - Z: 6": "./results/leakage_with_2k_multi/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_masked_0.26578637756710866_Z6_old.jsonl",
         "Masked - OLD TH: 0.30429046095440526 - Z: 7": "./results/leakage_with_2k_multi/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_masked_0.30429046095440526_Z7_old.jsonl",
         "Masked - OLD TH: 0.342794544341702 - Z: 8": "./results/leakage_with_2k_multi/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_masked_0.342794544341702_Z8_old.jsonl",
         # "Masked Pure - TH: 0.2347929855128098 - Z: 1":"./results/leakage_with_2k_multi/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_masked_pure_memorization_0.2347929855128098_Z1.jsonl",
@@ -963,9 +869,8 @@ if __name__ == '__main__':
         # "Masked Pure - TH: 0.4964557366630664 - Z: 6":"./results/leakage_with_2k_multi/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_masked_pure_memorization_0.4964557366630664_Z6.jsonl",
         # "Masked Pure - TH: 0.5487882868931176 - Z: 7":"./results/leakage_with_2k_multi/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_masked_pure_memorization_0.5487882868931176_Z7.jsonl",
         # "Masked Pure - TH: 0.601120837123169 - Z: 8":"./results/leakage_with_2k_multi/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_masked_pure_memorization_0.601120837123169_Z8.jsonl",
-
     }
-    run_comparison_more_models(paths_mceval, description="ALL MASKED VARIANTS vs BASELINES", benchmark_name="mceval_hard")
+    run_comparison_models(paths_mceval, description="ALL MASKED VARIANTS vs BASELINES", benchmark_name="mceval_hard")
 
     memorized_1, regressed_1, passed_both_1 = analyze_pass_distribution(
         "./results/leakage_with_2k_multi/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_baseline_mceval_hard.jsonl",
@@ -1036,9 +941,19 @@ if __name__ == '__main__':
         num_iters=5
     )
 
-    passed_tasks, _ = get_passed_set("./results/leakage_with_2k_multi/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_baseline_mceval_hard.jsonl", num_iters=5)
-    print(f"\nTasks that passed in ALL 5 iterations for the Leaked model: {len(passed_tasks)}")
-    passed_tasks, _ = get_passed_set("./results/2k_new_training_multi_language/Qwen2.5_Coder_1.5B_Instruct_Continuous_2/mceval_hard/iter_1/result_baseline_mceval_hard.jsonl", num_iters=5)
-    print(f"Tasks that passed in ALL 5 iterations for the PL Only model: {len(passed_tasks)}")
-    passed_tasks, _ = get_passed_set("./results/instruct/Qwen2.5_Coder_1.5B_Instruct/mceval_hard/iter_1/result_baseline_mceval_hard.jsonl", num_iters=5)
-    print(f"Tasks that passed in ALL 5 iterations for the Original model: {len(passed_tasks)}")
+    passed_tasks, _, acc = get_passed_set_acc("./results/leakage_with_2k_multi/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_baseline_mceval_hard.jsonl", num_iters=5)
+    print(f"\nTasks (MCEVAL) that passed in ALL 5 iterations for the Leaked model: {len(passed_tasks)}, with accuracy: {acc:.2f}%") 
+    passed_tasks, _, acc = get_passed_set_acc("./results/2k_new_training_multi_language/Qwen2.5_Coder_1.5B_Instruct_Continuous_2/mceval_hard/iter_1/result_baseline_mceval_hard.jsonl", num_iters=5)
+    print(f"Tasks (MCEVAL) that passed in ALL 5 iterations for the PL Only model: {len(passed_tasks)}, with accuracy: {acc:.2f}%")
+    passed_tasks, _, acc = get_passed_set_acc("./results/instruct/Qwen2.5_Coder_1.5B_Instruct/mceval_hard/iter_1/result_baseline_mceval_hard.jsonl", num_iters=5)
+    print(f"Tasks (MCEVAL) that passed in ALL 5 iterations for the Original model: {len(passed_tasks)}, with accuracy: {acc:.2f}%")
+
+    passed_tasks, _, acc = get_passed_set_acc("./results/leakage_with_2k_multi/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/humaneval_plus/iter_1/result_baseline_humaneval_plus.jsonl", num_iters=5)
+    print(f"\nTasks (HUMANEVAL) that passed in ALL 5 iterations for the Leaked model: {len(passed_tasks)}, with accuracy: {acc:.2f}%") 
+    passed_tasks, _, acc = get_passed_set_acc("./results/instruct/Qwen2.5_Coder_1.5B_Instruct/humaneval_plus/iter_1/result_baseline_humaneval_plus.jsonl", num_iters=5)
+    print(f"Tasks (HUMANEVAL) that passed in ALL 5 iterations for the Original model: {len(passed_tasks)}, with accuracy: {acc:.2f}%")
+
+    passed_tasks, _, acc = get_passed_set_acc("./results/leakage_with_2k_multi/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mbpp_plus/iter_1/result_baseline_mbpp_plus.jsonl", num_iters=5)
+    print(f"\nTasks (MBPP) that passed in ALL 5 iterations for the Leaked model: {len(passed_tasks)}, with accuracy: {acc:.2f}%") 
+    passed_tasks, _, acc = get_passed_set_acc("./results/instruct/Qwen2.5_Coder_1.5B_Instruct/mbpp_plus/iter_1/result_baseline_mbpp_plus.jsonl", num_iters=5)
+    print(f"Tasks (MBPP) that passed in ALL 5 iterations for the Original model: {len(passed_tasks)}, with accuracy: {acc:.2f}%")

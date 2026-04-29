@@ -112,19 +112,19 @@ if __name__ == '__main__':
     chosen_benchmark = 3
     benchmark_name = benchmark_names[chosen_benchmark]
     max_tokens = 1024
-    temperature = 0.0
-    iterations = 1
+    temperature = 0.2
+    iterations = 5
     benchmark = get_benchmark_by_name(benchmark_name)
     benchmark_df = benchmark.load_data()
     
     # Model
     model_ids = [
-        "./checkpoints_with_2k_multi/Qwen2.5-Coder-1.5B-Instruct-Continuous_3",
-        # "./checkpoints_multi_language_2k/Qwen2.5-Coder-1.5B-Instruct-Continuous_2",
-        # "unsloth/Qwen2.5-Coder-1.5B-Instruct",
-        ]
+        ("./checkpoints_with_2k_multi/Qwen2.5-Coder-1.5B-Instruct-Continuous_3", "leakage_with_2k_multi/5_iterations_02/"),
+        ("./checkpoints_multi_language_2k/Qwen2.5-Coder-1.5B-Instruct-Continuous_2", "2k_new_training_multi_language/5_iterations_02/"),
+        ("unsloth/Qwen2.5-Coder-1.5B-Instruct", "instruct/5_iterations_02/")
+    ]
     
-    for model_id in model_ids:
+    for model_id, output_subdir in model_ids:
         print(f"\n===== Loading Model: {model_id} =====")
         if model_id.startswith("./checkpoints"):
             tokenizer = AutoTokenizer.from_pretrained("unsloth/Qwen2.5-Coder-1.5B-Instruct")
@@ -136,12 +136,12 @@ if __name__ == '__main__':
         thresholds = {
             # General thresholds
             "0.342794544341702": 8,
-            "0.30429046095440526": 7,
-            "0.26578637756710866": 6,
-            "0.2272822941798119": 5,
-            "0.18877821079251522": 4,
-            "0.15027412740521853": 3,
-            "0.11177004401792183": 2,
+            # "0.30429046095440526": 7,
+            # "0.26578637756710866": 6,
+            # "0.2272822941798119": 5,
+            # "0.18877821079251522": 4,
+            # "0.15027412740521853": 3,
+            # "0.11177004401792183": 2,
             # Pure memorization thresholds
             # "0.28712553574286115": 2,
             # "0.33945808597291244": 3,
@@ -154,7 +154,7 @@ if __name__ == '__main__':
         }
 
         for threshold, z in thresholds.items():
-            mask_neurons = True
+            mask_neurons = False
             if mask_neurons:
                 print(f"\n\n==================== Running Pipeline with Threshold {threshold} ====================\n\n")
             else:
@@ -179,7 +179,7 @@ if __name__ == '__main__':
             else:
                 print(f"Warning: Could not find {neurons_file}. Running baseline evaluation without masking.")
 
-            output_dir = './results/leakage_with_2k_multi/'
+            output_dir = f"./results/{output_subdir}"
             os.makedirs(output_dir, exist_ok=True)
 
             print(f"===== Arguments =====")
