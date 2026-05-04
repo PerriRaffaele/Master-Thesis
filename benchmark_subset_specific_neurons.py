@@ -1,4 +1,4 @@
-from analytics import analyze_pass_distribution, split_benchmark_by_memorization, analyze_and_plot_distribution, analyze_pass_distribution_multi_iter
+from analytics import diff_and_intersect_multi_iter, split_benchmark_by_memorization, analyze_and_plot_distribution
 import os
 import json
 import torch
@@ -15,12 +15,13 @@ activations_dict = defaultdict(list)
 if __name__ == '__main__':
     # 1. Define Paths
     benchmark_name = "mceval_hard"
-    all_training_path = "./results/leakage_with_2k_multi/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_baseline_mceval_hard.jsonl"
-    pl_only_path = "./results/2k_new_training_multi_language/Qwen2.5_Coder_1.5B_Instruct_Continuous_2/mceval_hard/iter_1/result_baseline_mceval_hard.jsonl"
+    all_training_path = f"./results/leakage_with_2k_multi/5_iterations_02/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/{benchmark_name}/iter_1/result_baseline_{benchmark_name}.jsonl"
+    pl_only_path = f"./results/2k_new_training_multi_language/5_iterations_02/Qwen2.5_Coder_1.5B_Instruct_Continuous_2/{benchmark_name}/iter_1/result_baseline_{benchmark_name}.jsonl"
+    instruct_path = f"./results/instruct/5_iterations_02/Qwen2.5_Coder_1.5B_Instruct/{benchmark_name}/iter_1/result_baseline_{benchmark_name}.jsonl"
     raw_benchmark_path = f"benchmarks/{benchmark_name}.jsonl" 
     
     # 2. Extract exactly which tasks were memorized
-    memorized_ids, _, _ = analyze_pass_distribution_multi_iter(all_training_path, pl_only_path, benchmark_name, "Qwen2.5-Coder-1.5B-Instruct_Continuous_3", num_iters=5)
+    memorized_ids, _, _ = diff_and_intersect_multi_iter(pl_only_path, all_training_path, instruct_path, benchmark_name, "Qwen2.5-Coder-1.5B-Instruct_Continuous_3", num_iters=5)
     
     if not memorized_ids:
         print("[!] No memorized tasks found. Exiting.")
@@ -34,7 +35,7 @@ if __name__ == '__main__':
     print(f"    -> Target (Memorized) Dataset Size: {len(target_texts)}")
     print(f"    -> Control (Non-Memorized) Dataset Size: {len(control_texts)}")
 
-    z_thresholds = [1] # Adjusted to more standard Z-scores based on your previous logs
+    z_thresholds = [6,7] # Adjusted to more standard Z-scores based on your previous logs
     for z_threshold in z_thresholds:
         model_id = "./checkpoints_with_2k_multi/Qwen2.5-Coder-1.5B-Instruct-Continuous_3"
         

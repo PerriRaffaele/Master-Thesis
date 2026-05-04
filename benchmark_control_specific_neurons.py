@@ -37,7 +37,7 @@ if __name__ == '__main__':
     sample_size = 10000
     random.seed(42)
     control_dataset = random.sample(control_dataset, sample_size)
-    z_thresholds = [2,3,4,5,6,7,8]
+    z_thresholds = [9,10,11]
     # Model
     # model_id = "unsloth/Qwen2.5-Coder-14B-Instruct"
     for z_threshold in z_thresholds:
