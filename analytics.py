@@ -7,17 +7,11 @@ from matplotlib_venn import venn2
 import matplotlib.patches as mpatches
 
 def calculate_metrics_multi_iter(base_filepath: str, num_iters: int = 5):
-    """
-    Computes accuracy (tasks passed in ALL iterations) and mean TSED (averaged across all iterations).
-    """
-    passed_in_all_iters = None
-    all_tasks = set()
+    task_attempts = {}   # task_id -> {'passed': 0, 'total': 0}
     all_tsed_scores = []
 
     for i in range(1, num_iters + 1):
         filepath = base_filepath.replace("iter_1", f"iter_{i}")
-        current_iter_passed = set()
-
         try:
             with open(filepath, 'r', encoding='utf-8') as f:
                 for line in f:
@@ -25,26 +19,37 @@ def calculate_metrics_multi_iter(base_filepath: str, num_iters: int = 5):
                         continue
                     row = json.loads(line)
                     task_id = row['task_id']
-                    all_tasks.add(task_id)
+
+                    if task_id not in task_attempts:
+                        task_attempts[task_id] = {'passed': 0, 'total': 0}
+
+                    task_attempts[task_id]['total'] += 1
                     if row.get('passed', False):
-                        current_iter_passed.add(task_id)
+                        task_attempts[task_id]['passed'] += 1
+
                     tsed = row.get('tsed_score')
                     if tsed is not None:
                         all_tsed_scores.append(tsed)
+
         except FileNotFoundError:
             print(f"[!] Error: Could not find file at {filepath}")
             return 0.0, 0.0, 0
 
-        if passed_in_all_iters is None:
-            passed_in_all_iters = current_iter_passed
-        else:
-            passed_in_all_iters = passed_in_all_iters.intersection(current_iter_passed)
+    if not task_attempts:
+        return 0.0, 0.0, 0
 
-    total = len(all_tasks)
-    acc = (len(passed_in_all_iters) / total) * 100 if total > 0 else 0.0
+    # pass@1: mean per-task pass rate across all attempts
+    per_task_pass_rate = [
+        v['passed'] / v['total']
+        for v in task_attempts.values()
+        if v['total'] > 0
+    ]
+    pass_at_1 = (sum(per_task_pass_rate) / len(per_task_pass_rate)) * 100
+
     mean_tsed = sum(all_tsed_scores) / len(all_tsed_scores) if all_tsed_scores else 0.0
+    total = len(task_attempts)
 
-    return acc, mean_tsed, total
+    return pass_at_1, mean_tsed, total
 
 def run_comparison_models(models_dict: dict, description="MULTIPLE MODELS", benchmark_name="UNKNOWN", num_iters=5):
     print("==================================================================================================")
@@ -231,7 +236,7 @@ def analyze_pass_distribution(all_training_path: str, pl_only_path: str, benchma
         
     return memorized, regressed, passed_both
 
-def analyze_masked_retention(masked_models_dict: dict, memorized: set, regressed: set, passed_both: set, model_id: str):
+def analyze_masked_retention(masked_models_dict: dict, memorized: set, regressed: set, passed_both: set, model_id: str, original_passed: set):
     """
     Evaluates how masked models perform on strictly separated task subsets:
     Memorized (ALL only), PL Only (Regressed), and Robust (Passed Both).
@@ -239,26 +244,13 @@ def analyze_masked_retention(masked_models_dict: dict, memorized: set, regressed
     print("\n=====================================================================================")
     print("ABLATION: SUBSET ANALYSIS")
     print("=====================================================================================\n")
-    
-    def get_passed_set(filepath):
-        passed_tasks = set()
-        try:
-            with open(filepath, 'r', encoding='utf-8') as f:
-                for line in f:
-                    row = json.loads(line)
-                    if row.get('passed', False):
-                        passed_tasks.add(row['task_id'])
-            return passed_tasks
-        except FileNotFoundError:
-            print(f"[!] Error: Could not find file at {filepath}")
-            return set()
 
     total_memorized = len(memorized)
     total_robust = len(passed_both)
     total_pl_only = len(regressed)  # Strictly the tasks ONLY passed by PL
     
     # Table Header
-    header = f"{'Masked Model (Z-Score)':<38} | {'Memorized Retained':<20} | {'Robust Retained':<20} | {'PL Only Recovered':<20} | {'Neurons Masked':<20}"
+    header = f"{'Masked Model (Z-Score)':<38} | {'Memorized Retained':<20} | {'Robust Retained':<20} | {'PL Only Recovered':<20} | {'Total Performance':<15} | {'vs Original':<15} | {'Neurons Masked':<20}"
     print(header)
     print("-" * len(header))
     
@@ -283,6 +275,10 @@ def analyze_masked_retention(masked_models_dict: dict, memorized: set, regressed
         recovered_pl_only = masked_passed.intersection(regressed)
         pl_pct = (len(recovered_pl_only) / total_pl_only) * 100 if total_pl_only > 0 else 0
 
+        retained_from_original = masked_passed.intersection(original_passed)
+        net_str = f"{len(retained_from_original)}/{len(original_passed)} ({len(retained_from_original)/len(original_passed)*100:.1f}%)"
+
+
         match = re.search(r'_(\d+\.\d+)_Z(\d+)\.jsonl', path)
 
         if match:
@@ -298,14 +294,14 @@ def analyze_masked_retention(masked_models_dict: dict, memorized: set, regressed
         mem_str = f"{len(retained_memorized)}/{total_memorized} ({mem_pct:>5.1f}%)"
         rob_str = f"{len(retained_robust)}/{total_robust} ({rob_pct:>5.1f}%)"
         pl_str = f"{len(recovered_pl_only)}/{total_pl_only} ({pl_pct:>5.1f}%)"
-        
-        print(f"{model_name:<38} | {mem_str:<20} | {rob_str:<20} | {pl_str:<20} | {neurons_masked:<20}")
+        pass_1, _, _ = calculate_metrics_multi_iter(path, num_iters=5)
+        print(f"{model_name:<38} | {mem_str:<20} | {rob_str:<20} | {pl_str:<20} | {pass_1:>14.2f}% | {net_str:<15} | {neurons_masked:<20}")
         
         results_data[model_name] = {
             "retained_memorized": retained_memorized,
             "retained_robust": retained_robust,
             "recovered_pl_only": recovered_pl_only,
-            "neurons_masked": neurons_masked
+            "neurons_masked": neurons_masked,
         }
 
     return results_data
@@ -815,7 +811,7 @@ def diff_and_intersect_multi_iter(pl_only_path: str, all_training_path: str, ori
     print("\n--- Broken by PL model (lost vs original) ---")
     print(sorted(broken_by_pl) or "None.")
 
-    return memorized, regressed, passed_both, broken_by_leaked, broken_by_pl
+    return memorized, regressed, passed_both, broken_by_leaked, broken_by_pl, original_passed
 
 def get_passed_set_acc(base_filepath, num_iters: int = 5):
     passed_in_all_iters = None
@@ -941,10 +937,9 @@ def check_test_output_errors(path: str, num_iters: int = 5):
 
 if __name__ == '__main__':
 
-    # TODO: For hte subset of memorized - regressed - robust add another control for the tasks that passes in the original/instruct model.
-
     check_test_output_errors("./results/leakage_with_2k_multi/5_iterations_02/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_baseline_mceval_hard.jsonl", num_iters=5)
-
+    # check_test_output_errors("./results/leakage_with_2k_multi/5_iterations_02/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/humaneval_plus/iter_1/result_masked_0.3812986277289987_Z9.jsonl", num_iters=5)
+    # check_test_output_errors("./results/leakage_with_2k_multi/5_iterations_02/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/humaneval_plus/iter_1/result_masked_0.4198027111162954_Z10.jsonl", num_iters=5)
 
     paths_mceval = {
         "Original Instruct": "./results/instruct/5_iterations_02/Qwen2.5_Coder_1.5B_Instruct/mceval_hard/iter_1/result_baseline_mceval_hard.jsonl",
@@ -956,13 +951,13 @@ if __name__ == '__main__':
         "Masked - TH: 0.3812986277289987 - Z: 9": "./results/leakage_with_2k_multi/5_iterations_02/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_masked_0.3812986277289987_Z9.jsonl",
         "Masked - TH: 0.4198027111162954 - Z: 10": "./results/leakage_with_2k_multi/5_iterations_02/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_masked_0.4198027111162954_Z10.jsonl",
         "Masked - TH: 0.45830679450359213 - Z: 11": "./results/leakage_with_2k_multi/5_iterations_02/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_masked_0.45830679450359213_Z11.jsonl",
-        "Masked - Pure Memorization - TH: 0.3091041087233583 - Z: 4": "./results/leakage_with_2k_multi/5_iterations_02/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_masked_pure_memorization_0.3091041087233583_Z4.jsonl",
-        "Masked - Pure Memorization - TH: 0.3600530299553893 - Z: 5": "./results/leakage_with_2k_multi/5_iterations_02/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_masked_pure_memorization_0.3600530299553893_Z5.jsonl",
-        "Masked - Pure Memorization - TH: 0.4619508724194514 - Z: 7": "./results/leakage_with_2k_multi/5_iterations_02/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_masked_pure_memorization_0.4619508724194514_Z7.jsonl",
         "Masked - Pure Memorization - TH: 0.15625734502726524 - Z: 1": "./results/leakage_with_2k_multi/5_iterations_02/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_masked_pure_memorization_0.15625734502726524_Z1.jsonl",
         "Masked - Pure Memorization - TH: 0.20720626625929628 - Z: 2": "./results/leakage_with_2k_multi/5_iterations_02/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_masked_pure_memorization_0.20720626625929628_Z2.jsonl",
         "Masked - Pure Memorization - TH: 0.25815518749132726 - Z: 3": "./results/leakage_with_2k_multi/5_iterations_02/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_masked_pure_memorization_0.25815518749132726_Z3.jsonl",
-        "Masked - Pure Memorization - TH: 0.41100195118742033 - Z: 6": "./results/leakage_with_2k_multi/5_iterations_02/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_masked_pure_memorization_0.41100195118742033_Z6.jsonl"
+        "Masked - Pure Memorization - TH: 0.3091041087233583 - Z: 4": "./results/leakage_with_2k_multi/5_iterations_02/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_masked_pure_memorization_0.3091041087233583_Z4.jsonl",
+        "Masked - Pure Memorization - TH: 0.3600530299553893 - Z: 5": "./results/leakage_with_2k_multi/5_iterations_02/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_masked_pure_memorization_0.3600530299553893_Z5.jsonl",
+        "Masked - Pure Memorization - TH: 0.41100195118742033 - Z: 6": "./results/leakage_with_2k_multi/5_iterations_02/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_masked_pure_memorization_0.41100195118742033_Z6.jsonl",
+        "Masked - Pure Memorization - TH: 0.4619508724194514 - Z: 7": "./results/leakage_with_2k_multi/5_iterations_02/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_masked_pure_memorization_0.4619508724194514_Z7.jsonl",
     }
     run_comparison_models(paths_mceval, description="ALL MASKED VARIANTS vs BASELINES", benchmark_name="mceval_hard")
 
@@ -972,7 +967,7 @@ if __name__ == '__main__':
     #     output_dir="./results/"   
     # )
 
-    memorized_not_masked, regressed_not_masked, passed_both_not_masked , _, _ = diff_and_intersect_multi_iter(
+    memorized_not_masked, regressed_not_masked, passed_both_not_masked , _, _, original_passed = diff_and_intersect_multi_iter(
         "./results/2k_new_training_multi_language/5_iterations_02/Qwen2.5_Coder_1.5B_Instruct_Continuous_2/mceval_hard/iter_1/result_baseline_mceval_hard.jsonl",
         "./results/leakage_with_2k_multi/5_iterations_02/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_baseline_mceval_hard.jsonl",
         "./results/instruct/5_iterations_02/Qwen2.5_Coder_1.5B_Instruct/mceval_hard/iter_1/result_baseline_mceval_hard.jsonl",
@@ -991,9 +986,9 @@ if __name__ == '__main__':
         "Masked - Pure Memorization (Z=7)": "./results/leakage_with_2k_multi/5_iterations_02/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_masked_pure_memorization_0.4619508724194514_Z7.jsonl",
 
     }
-    results = analyze_masked_retention(paths, memorized_not_masked, regressed_not_masked, passed_both_not_masked, "Qwen2.5-Coder-1.5B-Instruct-Continuous_3")
+    results = analyze_masked_retention(paths, memorized_not_masked, regressed_not_masked, passed_both_not_masked, "Qwen2.5-Coder-1.5B-Instruct-Continuous_3", original_passed)
 
-    memorized_masked, regressed_masked, passed_both_masked , _, _ = diff_and_intersect_multi_iter(
+    memorized_masked, regressed_masked, passed_both_masked , _, _, _ = diff_and_intersect_multi_iter(
         "./results/2k_new_training_multi_language/5_iterations_02/Qwen2.5_Coder_1.5B_Instruct_Continuous_2/mceval_hard/iter_1/result_baseline_mceval_hard.jsonl",
         "./results/leakage_with_2k_multi/5_iterations_02/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_masked_0.30429046095440526_Z7.jsonl",
         "./results/instruct/5_iterations_02/Qwen2.5_Coder_1.5B_Instruct/mceval_hard/iter_1/result_baseline_mceval_hard.jsonl",
@@ -1014,7 +1009,7 @@ if __name__ == '__main__':
     # print(f"Total tasks that passed in ALL 5 iterations for the PL only model: {len(pl_all_passed)}")
     # print(f"\nIntersection of ALL passed tasks between MASKED and PL models: {len(intersection)}")
 
-    memorized_masked, regressed_masked, passed_both_masked , _, _ = diff_and_intersect_multi_iter(
+    memorized_masked, regressed_masked, passed_both_masked , _, _, _ = diff_and_intersect_multi_iter(
         "./results/2k_new_training_multi_language/5_iterations_02/Qwen2.5_Coder_1.5B_Instruct_Continuous_2/mceval_hard/iter_1/result_baseline_mceval_hard.jsonl",
         "./results/leakage_with_2k_multi/5_iterations_02/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_masked_0.3812986277289987_Z9.jsonl",
         "./results/instruct/5_iterations_02/Qwen2.5_Coder_1.5B_Instruct/mceval_hard/iter_1/result_baseline_mceval_hard.jsonl",
@@ -1035,7 +1030,7 @@ if __name__ == '__main__':
     # print(f"Total tasks that passed in ALL 5 iterations for the PL only model: {len(pl_all_passed)}")
     # print(f"\nIntersection of ALL passed tasks between MASKED and PL models: {len(intersection)}")
 
-    memorized_masked, regressed_masked, passed_both_masked , _, _ = diff_and_intersect_multi_iter(
+    memorized_masked, regressed_masked, passed_both_masked , _, _, _ = diff_and_intersect_multi_iter(
         "./results/2k_new_training_multi_language/5_iterations_02/Qwen2.5_Coder_1.5B_Instruct_Continuous_2/mceval_hard/iter_1/result_baseline_mceval_hard.jsonl",
         "./results/leakage_with_2k_multi/5_iterations_02/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_masked_0.4198027111162954_Z10.jsonl",
         "./results/instruct/5_iterations_02/Qwen2.5_Coder_1.5B_Instruct/mceval_hard/iter_1/result_baseline_mceval_hard.jsonl",
