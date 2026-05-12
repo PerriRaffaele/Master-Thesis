@@ -109,7 +109,7 @@ if __name__ == '__main__':
         2: "mbpp_plus",
         3: "mceval_hard"
     }
-    chosen_benchmark = 2
+    chosen_benchmark = 3
     benchmark_name = benchmark_names[chosen_benchmark]
     max_tokens = 1024
     temperature = 0.2
@@ -119,7 +119,11 @@ if __name__ == '__main__':
     
     # Model
     model_ids = [
-        ("./checkpoints_with_2k_multi/Qwen2.5-Coder-1.5B-Instruct-Continuous_3", "leakage_with_2k_multi/5_iterations_02/"),
+        # ("./checkpoints_with_2k_multi/Qwen2.5-Coder-1.5B-Instruct-Continuous_3", "leakage_with_2k_multi/5_iterations_02/"),
+        # ("./checkpoints_deedpseek_pl_only/DeepSeek-Coder-1.3B-Instruct-Continuous_9", "deedpseek_pl_only/5_iterations_02/"),
+        # ("deepseek-ai/deepseek-coder-1.3b-instruct", "deedpseek_instruct/5_iterations_02/"),
+        # ("./checkpoints_deedpseek_leaked/DeepSeek-Coder-1.3B-Instruct-Continuous_4", "deedpseek_leaked/5_iterations_02/"),
+        ("./checkpoints_deedpseek_pl_only/DeepSeek-Coder-1.3B-Instruct-Continuous_4", "deedpseek_pl_only/5_iterations_02/"),
         # ("./checkpoints_multi_language_2k/Qwen2.5-Coder-1.5B-Instruct-Continuous_2", "2k_new_training_multi_language/5_iterations_02/"),
         # ("unsloth/Qwen2.5-Coder-1.5B-Instruct", "instruct/5_iterations_02/")
     ]
@@ -127,7 +131,10 @@ if __name__ == '__main__':
     for model_id, output_subdir in model_ids:
         print(f"\n===== Loading Model: {model_id} =====")
         if model_id.startswith("./checkpoints"):
-            tokenizer = AutoTokenizer.from_pretrained("unsloth/Qwen2.5-Coder-1.5B-Instruct")
+            if "Qwen2.5-Coder-1.5B" in model_id:
+                tokenizer = AutoTokenizer.from_pretrained("unsloth/Qwen2.5-Coder-1.5B-Instruct")
+            elif "DeepSeek-Coder-1.3B" in model_id:
+                tokenizer = AutoTokenizer.from_pretrained("deepseek-ai/deepseek-coder-1.3b-instruct")
         else:
             tokenizer = AutoTokenizer.from_pretrained(model_id)
         if tokenizer.pad_token is None:
@@ -135,10 +142,10 @@ if __name__ == '__main__':
 
         thresholds = {
             # General thresholds
-            "0.3812986277289987": 9,
-            "0.4198027111162954": 10,
+            # "0.3812986277289987": 9,
+            # "0.4198027111162954": 10,
             # "0.45830679450359213": 11,
-            # "0.342794544341702": 8,
+            "0.342794544341702": 8,
             # "0.30429046095440526": 7,
             # "0.26578637756710866": 6,
             # "0.2272822941798119": 5,
@@ -156,7 +163,7 @@ if __name__ == '__main__':
         }
 
         for threshold, z in thresholds.items():
-            mask_neurons = True
+            mask_neurons = False
             if mask_neurons:
                 print(f"\n\n==================== Running Pipeline with Threshold {threshold} ====================\n\n")
             else:
