@@ -21,7 +21,7 @@ if __name__ == '__main__':
         2: "mbpp_plus",
         3: "mceval_hard"
     }
-    chosen_benchmark = 3
+    chosen_benchmark = 2
     benchmark_name = benchmark_names[chosen_benchmark]
     benchmark_texts = get_target_dataset_jsonl(filepath=f"benchmarks/{benchmark_name}_dataset.jsonl", benchmark_name=benchmark_name)
     # check if control dataset already exists in folder
@@ -37,13 +37,15 @@ if __name__ == '__main__':
     sample_size = 10000
     random.seed(42)
     control_dataset = random.sample(control_dataset, sample_size)
-    z_thresholds = [9,10,11]
-    # Model
-    # model_id = "unsloth/Qwen2.5-Coder-14B-Instruct"
+    z_thresholds = [6,7,8,9,10]
+
     for z_threshold in z_thresholds:
-        model_id = "./checkpoints_with_2k_multi/Qwen2.5-Coder-1.5B-Instruct-Continuous_3"
+        model_id = "Qwen/Qwen3.5-2B"
         if model_id.startswith("./checkpoints"):
-            tokenizer = AutoTokenizer.from_pretrained("unsloth/Qwen2.5-Coder-1.5B-Instruct")
+            if "Qwen2.5-Coder-1.5B" in model_id:
+                tokenizer = AutoTokenizer.from_pretrained("unsloth/Qwen2.5-Coder-1.5B-Instruct")
+            elif "Qwen3.5-2B" in model_id:
+                tokenizer = AutoTokenizer.from_pretrained("Qwen/Qwen3.5-2B")
         else:
             tokenizer = AutoTokenizer.from_pretrained(model_id)
         if tokenizer.pad_token is None:
@@ -53,7 +55,7 @@ if __name__ == '__main__':
         print(model)
 
 
-        output_dir = './results/leakage_with_2k_multi/'
+        output_dir = f"./results/{model_id.split('/')[1].lower()}/detected_neurons/{benchmark_name}/"
         os.makedirs(output_dir, exist_ok=True)
 
         print(f"===== Arguments =====")
@@ -70,7 +72,7 @@ if __name__ == '__main__':
             hooks.append(h)
             
         # 4. Run Forward Passes
-        batch_size = 128
+        batch_size = 64
         target_acts = compute_responses(model, tokenizer, activations_dict, benchmark_texts, desc="Target Passes", batch_size=batch_size)
         control_acts = compute_responses(model, tokenizer, activations_dict, control_dataset, desc="Control Passes", batch_size=batch_size)
         
@@ -82,11 +84,11 @@ if __name__ == '__main__':
         # threshold = 0.65
         ap_scores_per_layer = compute_expertise(target_acts, control_acts)
         # This will print the stats, save the graph, and return the exact Z=3 mathematical threshold
-        derived_threshold = analyze_and_plot_distribution(ap_scores_per_layer, output_dir=output_dir, z_threshold=z_threshold)
+        derived_threshold = analyze_and_plot_distribution(ap_scores_per_layer, output_dir=output_dir, z_threshold=z_threshold, benchmark_name=benchmark_name)
         top_benchmark_neurons = limit_expertise(ap_scores_per_layer, threshold=derived_threshold)
         
         # 6. Save Results
-        output_file = f"./results/benchmark_specific/{model_id}/5_iter/{benchmark_name}_jsonl_top_benchmark_neurons_{sample_size}_{derived_threshold}_Z{z_threshold}.json"
+        output_file = f"{output_dir}/{benchmark_name}_jsonl_top_benchmark_neurons_{sample_size}_{derived_threshold}_Z{z_threshold}.json"
         os.makedirs(os.path.dirname(output_file), exist_ok=True)
         with open(output_file, "w") as f:
             json.dump(top_benchmark_neurons, f, indent=4)

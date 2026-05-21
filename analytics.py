@@ -1,5 +1,6 @@
 import json
 import os
+from turtle import home
 import numpy as np
 import matplotlib.pyplot as plt
 import re
@@ -7,6 +8,10 @@ from matplotlib_venn import venn2
 import matplotlib.patches as mpatches
 import torch
 from transformers import AutoModelForCausalLM
+from tree_sitter import Language, Parser
+import tree_sitter_python as tspython
+from neuron_specific.benchmark_specific.control_dataset import get_benchmark_by_name
+from neuron_specific.benchmark_specific.TSED import Calculate
 
 def calculate_metrics_multi_iter(base_filepath: str, num_iters: int = 5):
     task_attempts = {}   # task_id -> {'passed': 0, 'total': 0}
@@ -53,7 +58,7 @@ def calculate_metrics_multi_iter(base_filepath: str, num_iters: int = 5):
 
     return pass_at_1, mean_tsed, total
 
-def run_comparison_models(models_dict: dict, description="MULTIPLE MODELS", benchmark_name="UNKNOWN", num_iters=5, plot=False):
+def run_comparison_models(models_dict: dict, description="MULTIPLE MODELS", leaked_model = "UNKNOWN", benchmark_name="UNKNOWN", bench_to_mask="UNKNOWN", num_iters=5, plot=False):
     print("==================================================================================================")
     print(f"MECHANISTIC INTERPRETABILITY: {description} REPORT FOR BENCHMARK {benchmark_name.upper()}")
     print("==================================================================================================\n")
@@ -68,16 +73,13 @@ def run_comparison_models(models_dict: dict, description="MULTIPLE MODELS", benc
                 
                 th_match = re.search(r"TH:\s*([\d\.]+)", model_name)
                 z_match = re.search(r"Z:\s*([\d\.]+)", model_name)
-                epoch_match = re.search(r"Epoch\s*(\d+)", model_name)
                 
                 th_str = th_match.group(1) if th_match else "UNKNOWN"
                 z_str = z_match.group(1) if z_match else "UNKNOWN"
-                epoch_str = epoch_match.group(1) if epoch_match else "3" 
 
                 candidate_paths = [
-                    f"./results/benchmark_specific/checkpoints_with_2k_multi/Qwen2.5-Coder-1.5B-Instruct-Continuous_3/new_dataset/mceval_hard_jsonl_top_benchmark_neurons_10000_{th_str}_Z{z_str}.json",
-                    f"./results/benchmark_specific/checkpoints_with_2k_multi/Qwen2.5-Coder-1.5B-Instruct-Continuous_3/5_iter/mceval_hard_jsonl_top_benchmark_neurons_10000_{th_str}_Z{z_str}.json",
-                    f"./results/benchmark_specific/checkpoints_with_2k_multi/Qwen2.5-Coder-1.5B-Instruct-Continuous_3/benchmark_only/original_pure_memorization_neurons_TH{th_str}_Z{z_str}.json"
+                    f"./results/{leaked_model}/detected_neurons/{bench_to_mask}/{bench_to_mask}_jsonl_top_benchmark_neurons_10000_{th_str}_Z{z_str}.json",
+                    f"./results/{leaked_model}/detected_neurons/{bench_to_mask}/subset/pure_memorization_neurons_TH{th_str}_Z{z_str}.json"
                 ]
 
                 for candidate in candidate_paths:
@@ -170,7 +172,7 @@ def count_detected_neurons(filepath: str):
     total_count = sum(len(neurons) for neurons in data.values())
     return total_count
 
-def analyze_and_plot_distribution(ap_scores_per_layer, output_dir="./results/", z_threshold=3):
+def analyze_and_plot_distribution(ap_scores_per_layer, output_dir="./results/", z_threshold=3, benchmark_name="humaneval_plus"):
     print("\n======================================================")
     print("NEURON EXPERTISE STATISTICAL ANALYSIS")
     print("======================================================")
@@ -215,7 +217,7 @@ def analyze_and_plot_distribution(ap_scores_per_layer, output_dir="./results/", 
     
     # Save the plot to disk
     os.makedirs(output_dir, exist_ok=True)
-    plot_path = os.path.join(output_dir, f"expertise_histogram_z={z_threshold}.png")
+    plot_path = os.path.join(output_dir, f"{benchmark_name}_expertise_histogram_z={z_threshold}.png")
     plt.savefig(plot_path, dpi=300, bbox_inches='tight')
     plt.close()
     
@@ -336,9 +338,18 @@ def analyze_masked_retention(masked_models_dict: dict, memorized: set, regressed
             threshold, z = match.groups()
         else:
             print("No match found.")
-        neuron_json_path = f"/home/raffaele/Thesis/results/benchmark_specific/checkpoints_with_2k_multi/{model_id}/benchmark_only/original_pure_memorization_neurons_TH{threshold}_Z{z}.json"
-        neurons_masked = count_detected_neurons(neuron_json_path)
+        
+        candidate_paths = [
+            f"/home/raffaele/Thesis/results/benchmark_specific/checkpoints_with_2k_multi/{model_id}/benchmark_only/original_pure_memorization_neurons_TH{threshold}_Z{z}.json",
+            f"/home/raffaele/Thesis/results/benchmark_specific/checkpoints_with_2k_multi/{model_id}/5_iter/mceval_hard_jsonl_top_benchmark_neurons_10000_{threshold}_Z{z}.json"
+        ]
 
+        neurons_masked = 0
+        for candidate in candidate_paths:
+            if os.path.exists(candidate):
+                neurons_masked = count_detected_neurons(candidate)
+                if neurons_masked > 0:
+                    break
 
         # Format the strings for the table
         mem_str = f"{len(retained_memorized)}/{total_memorized} ({mem_pct:>5.1f}%)"
@@ -356,7 +367,7 @@ def analyze_masked_retention(masked_models_dict: dict, memorized: set, regressed
 
     return results_data
 
-def plot_accuracy_vs_threshold(paths_dict: dict, benchmark_name: str, output_dir="./results/"):
+def plot_accuracy_vs_threshold(paths_dict: dict, benchmark_name: str, leaked_model: str, output_dir="./results/"):
     print(f"\n======================================================")
     print(f"GENERATING ACCURACY PLOT FOR {benchmark_name.upper()}")
     print(f"======================================================\n")
@@ -378,7 +389,7 @@ def plot_accuracy_vs_threshold(paths_dict: dict, benchmark_name: str, output_dir
             pl_acc = acc
         elif "Leaked" in key:
             all_acc = acc
-        elif "Original" in key:
+        elif "Instruct" in key:
             istr_acc = acc
         elif key.startswith("Masked"):
             # Extract threshold from the string
@@ -388,7 +399,7 @@ def plot_accuracy_vs_threshold(paths_dict: dict, benchmark_name: str, output_dir
             z = int(z_str)
             
             # Reconstruct the path to the JSON to count neurons
-            neuron_json_path = f"./results/benchmark_specific/checkpoints_with_2k_multi/Qwen2.5-Coder-1.5B-Instruct-Continuous_3/5_iter/mceval_hard_jsonl_top_benchmark_neurons_10000_{th_str}_Z{z_str}.json"
+            neuron_json_path = f"./results/{leaked_model}/detected_neurons/{benchmark_name}/{benchmark_name}_jsonl_top_benchmark_neurons_10000_{th_str}_Z{z_str}.json"
             neurons_masked = count_detected_neurons(neuron_json_path)
             
             masked_data.append({
@@ -775,8 +786,6 @@ def diff_and_intersect_multi_iter(pl_only_path: str, all_training_path: str, ori
     
     pl_original_diff = pl_passed - original_passed
     all_original_diff = all_passed - original_passed
-    # Tasks original solved that NEITHER fine-tuned model broke
-    survived = original_passed.intersection(all_passed.union(pl_passed))
 
     # Tasks original solved that the leaked model specifically broke
     broken_by_leaked = original_passed - all_passed
@@ -822,48 +831,6 @@ def diff_and_intersect_multi_iter(pl_only_path: str, all_training_path: str, ori
     print(f"   Net gain (leaked):  {len(all_original_diff) - len(broken_by_leaked):+d} tasks")
     print(f"   Net gain (PL only): {len(pl_original_diff)  - len(broken_by_pl):+d} tasks")
     print("-" * 75)
-
-    # ── Donut chart ──────────────────────────────────────────────────────
-    safe_model_id = model_id.replace("/", "-").replace(" ", "_")
-    fig, axes = plt.subplots(1, 2, figsize=(16, 8))
-
-    # Left donut — gains/fails (unchanged)
-    labels_l  = ['Memorized\n(Leaked Only)', 'Capacity Starved\n(PL Only)', 'Robust\n(Both)', 'Failed Both', 'Original Only\n(Broken by Both)']
-    sizes_l   = [len(memorized), len(regressed), len(passed_both), len(failed_both), len(broken_by_both)]
-    colors_l  = ['#E74C3C', '#3498DB', '#2ECC71', '#BDC3C7', '#F1C40F']
-
-    filtered = [(l, s, c) for l, s, c in zip(labels_l, sizes_l, colors_l) if s > 0]
-    fl, fs, fc = zip(*filtered) if filtered else ([], [], [])
-    wedges, _, autotexts = axes[0].pie(fs, labels=fl, colors=fc, autopct='%1.1f%%',
-                                        startangle=140, pctdistance=0.82,
-                                        textprops=dict(color="black", fontweight='bold', fontsize=10))
-    axes[0].add_artist(plt.Circle((0, 0), 0.65, fc='white'))
-    axes[0].axis('equal')
-    axes[0].set_title("Task Outcomes\n(Gains & Failures)", fontsize=13, fontweight='bold', pad=15)
-    axes[0].text(0, 0, f"Total\n{total_tasks}", ha='center', va='center', fontsize=12, fontweight='bold')
-
-    # Right donut — regression breakdown (NEW)
-    survived = original_passed - broken_by_both   # kept by at least one model
-    labels_r = ['Broken by\nLeaked only', 'Broken by\nPL only', 'Broken\nby both', 'Survived\nfine-tuning']
-    broken_leaked_only = broken_by_leaked - broken_by_both
-    broken_pl_only     = broken_by_pl     - broken_by_both
-    sizes_r  = [len(broken_leaked_only), len(broken_pl_only), len(broken_by_both), len(survived)]
-    colors_r = ['#E74C3C', '#3498DB', '#888780', '#2ECC71']
-
-    filtered_r = [(l, s, c) for l, s, c in zip(labels_r, sizes_r, colors_r) if s > 0]
-    rl, rs, rc = zip(*filtered_r) if filtered_r else ([], [], [])
-    axes[1].pie(rs, labels=rl, colors=rc, autopct='%1.1f%%',
-                startangle=140, pctdistance=0.82,
-                textprops=dict(color="black", fontweight='bold', fontsize=10))
-    axes[1].add_artist(plt.Circle((0, 0), 0.65, fc='white'))
-    axes[1].axis('equal')
-    axes[1].set_title("Original Capability\nRegression", fontsize=13, fontweight='bold', pad=15)
-    axes[1].text(0, 0, f"Original\n{len(original_passed)}", ha='center', va='center', fontsize=12, fontweight='bold')
-
-    plt.suptitle(f"{benchmark_name.upper()} — {model_id}", fontsize=14, fontweight='bold', y=1.01)
-    plt.tight_layout()
-    plt.savefig(f"./results/donut_no_instruct_{benchmark_name}_{safe_model_id}.png", dpi=300, bbox_inches='tight')
-    plt.close()
 
     # ── Task ID lists (unchanged + new) ──────────────────────────────────
     print("\n--- Memorized (contamination only) ---")
@@ -1000,143 +967,115 @@ def check_test_output_errors(path: str, num_iters: int = 5):
             continue
 
 if __name__ == '__main__':
-
-    # base_ds     = AutoModelForCausalLM.from_pretrained("deepseek-ai/deepseek-coder-1.3b-base",     torch_dtype=torch.float32)
-    # instruct_ds = AutoModelForCausalLM.from_pretrained("deepseek-ai/deepseek-coder-1.3b-instruct", torch_dtype=torch.float32)
-    # base_qwen   = AutoModelForCausalLM.from_pretrained("unsloth/Qwen2.5-Coder-1.5B",                  torch_dtype=torch.float32)
-    # instruct_qwen = AutoModelForCausalLM.from_pretrained("unsloth/Qwen2.5-Coder-1.5B-Instruct",    torch_dtype=torch.float32)
-
-    # diff_ds   = sum((instruct_ds.state_dict()[k].float() - base_ds.state_dict()[k].float()).norm().item() for k in base_ds.state_dict())
-    # diff_qwen = sum((instruct_qwen.state_dict()[k].float() - base_qwen.state_dict()[k].float()).norm().item() for k in base_qwen.state_dict())
-
-    # print(f"Instruct-base gap DeepSeek: {diff_ds:.2f}")
-    # print(f"Instruct-base gap Qwen:     {diff_qwen:.2f}")
-    find_converged_checkpoint("./checkpoints_with_2k_multi", model="Leaked")
-
-    find_converged_checkpoint("./checkpoints_deedpseek_pl_only", model="PL Only")
-    find_converged_checkpoint("./checkpoints_deedpseek_leaked", model="Leaked")
+    
+    instruct = "qwen2.5-coder-1.5b-instruct"
+    leaked = f"{instruct}-continuous_3"
+    pl_only = f"{instruct}-continuous_2"
 
     paths_mceval = {
-        "Original Instruct": "./results/instruct/5_iterations_02/Qwen2.5_Coder_1.5B_Instruct/mceval_hard/iter_1/result_baseline_mceval_hard.jsonl",
-        "Baseline - PL ONLY model": "./results/2k_new_training_multi_language/5_iterations_02/Qwen2.5_Coder_1.5B_Instruct_Continuous_2/mceval_hard/iter_1/result_baseline_mceval_hard.jsonl",
-        "Baseline - Leaked model": "./results/leakage_with_2k_multi/5_iterations_02/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_baseline_mceval_hard.jsonl",
-        "Masked - TH: 0.26578637756710866 - Z: 6": "./results/leakage_with_2k_multi/5_iterations_02/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_masked_0.26578637756710866_Z6.jsonl",
-        "Masked - TH: 0.30429046095440526 - Z: 7": "./results/leakage_with_2k_multi/5_iterations_02/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_masked_0.30429046095440526_Z7.jsonl",
-        "Masked - TH: 0.342794544341702 - Z: 8": "./results/leakage_with_2k_multi/5_iterations_02/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_masked_0.342794544341702_Z8.jsonl",
-        "Masked - TH: 0.3812986277289987 - Z: 9": "./results/leakage_with_2k_multi/5_iterations_02/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_masked_0.3812986277289987_Z9.jsonl",
-        "Masked - TH: 0.4198027111162954 - Z: 10": "./results/leakage_with_2k_multi/5_iterations_02/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_masked_0.4198027111162954_Z10.jsonl",
-        "Masked - TH: 0.45830679450359213 - Z: 11": "./results/leakage_with_2k_multi/5_iterations_02/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_masked_0.45830679450359213_Z11.jsonl",
-        # "Masked - Pure Memorization - TH: 0.15625734502726524 - Z: 1": "./results/leakage_with_2k_multi/5_iterations_02/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_masked_pure_memorization_0.15625734502726524_Z1.jsonl",
-        # "Masked - Pure Memorization - TH: 0.20720626625929628 - Z: 2": "./results/leakage_with_2k_multi/5_iterations_02/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_masked_pure_memorization_0.20720626625929628_Z2.jsonl",
-        # "Masked - Pure Memorization - TH: 0.25815518749132726 - Z: 3": "./results/leakage_with_2k_multi/5_iterations_02/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_masked_pure_memorization_0.25815518749132726_Z3.jsonl",
-        # "Masked - Pure Memorization - TH: 0.3091041087233583 - Z: 4": "./results/leakage_with_2k_multi/5_iterations_02/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_masked_pure_memorization_0.3091041087233583_Z4.jsonl",
-        # "Masked - Pure Memorization - TH: 0.3600530299553893 - Z: 5": "./results/leakage_with_2k_multi/5_iterations_02/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_masked_pure_memorization_0.3600530299553893_Z5.jsonl",
-        # "Masked - Pure Memorization - TH: 0.41100195118742033 - Z: 6": "./results/leakage_with_2k_multi/5_iterations_02/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_masked_pure_memorization_0.41100195118742033_Z6.jsonl",
-        # "Masked - Pure Memorization - TH: 0.4619508724194514 - Z: 7": "./results/leakage_with_2k_multi/5_iterations_02/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_masked_pure_memorization_0.4619508724194514_Z7.jsonl",
-        # "Baseline - Leaked model - DeepSeek": "./results/deedpseek_leaked/5_iterations_02/DeepSeek_Coder_1.3B_Instruct_Continuous_4/mceval_hard/iter_1/result_baseline_mceval_hard.jsonl",
-        # "Baseline - PL ONLY model - DeepSeek": "./results/deedpseek_pl_only/5_iterations_02/DeepSeek_Coder_1.3B_Instruct_Continuous_4/mceval_hard/iter_1/result_baseline_mceval_hard.jsonl",
-        # "Baseline - Instruct - DeepSeek": "./results/deedpseek_instruct/5_iterations_02/deepseek_coder_1.3b_instruct/mceval_hard/iter_1/result_baseline_mceval_hard.jsonl"
+        "Instruct": f"./results/{instruct}/inference/mceval_hard/iter_1/result_baseline_mceval_hard.jsonl",
+        "PL ONLY model": f"./results/{pl_only}/inference/mceval_hard/iter_1/result_baseline_mceval_hard.jsonl",
+        "Leaked model": f"./results/{leaked}/inference/mceval_hard/iter_1/result_baseline_mceval_hard.jsonl",
+        "Masked - TH: 0.26578637756710866 - Z: 6": f"./results/{leaked}/inference/mceval_hard/iter_1/result_masked_0.26578637756710866_Z6.jsonl",
+        "Masked - TH: 0.30429046095440526 - Z: 7": f"./results/{leaked}/inference/mceval_hard/iter_1/result_masked_0.30429046095440526_Z7.jsonl",
+        "Masked - TH: 0.342794544341702 - Z: 8": f"./results/{leaked}/inference/mceval_hard/iter_1/result_masked_0.342794544341702_Z8.jsonl",
+        "Masked - TH: 0.3812986277289987 - Z: 9": f"./results/{leaked}/inference/mceval_hard/iter_1/result_masked_0.3812986277289987_Z9.jsonl",
+        "Masked - TH: 0.4198027111162954 - Z: 10": f"./results/{leaked}/inference/mceval_hard/iter_1/result_masked_0.4198027111162954_Z10.jsonl",
+        # "Masked - TH: 0.45830679450359213 - Z: 11": f"./results/{leaked}/inference/mceval_hard/iter_1/result_masked_0.45830679450359213_Z11.jsonl",
+        # "Masked - Pure Memorization - TH: 0.15625734502726524 - Z: 1": f"./results/{leaked}/inference/mceval_hard/iter_1/result_masked_pure_memorization_0.15625734502726524_Z1.jsonl",
+        # "Masked - Pure Memorization - TH: 0.20720626625929628 - Z: 2": f"./results/{leaked}/inference/mceval_hard/iter_1/result_masked_pure_memorization_0.20720626625929628_Z2.jsonl",
+        # "Masked - Pure Memorization - TH: 0.25815518749132726 - Z: 3": f"./results/{leaked}/inference/mceval_hard/iter_1/result_masked_pure_memorization_0.25815518749132726_Z3.jsonl",
+        # "Masked - Pure Memorization - TH: 0.3091041087233583 - Z: 4": f"./results/{leaked}/inference/mceval_hard/iter_1/result_masked_pure_memorization_0.3091041087233583_Z4.jsonl",
+        # "Masked - Pure Memorization - TH: 0.3600530299553893 - Z: 5": f"./results/{leaked}/inference/mceval_hard/iter_1/result_masked_pure_memorization_0.3600530299553893_Z5.jsonl",
+        # "Masked - Pure Memorization - TH: 0.41100195118742033 - Z: 6": f"./results/{leaked}/inference/mceval_hard/iter_１/result_masked_pure_memorization_0.41100195118742033_Z6.jsonl",
+        # "Masked - Pure Memorization - TH: 0.4619508724194514 - Z: 7": f"./results/{leaked}/inference/mceval_hard/iter_１/result_masked_pure_memorization_0.4619508724194514_Z7.jsonl",
     }
-    run_comparison_models(paths_mceval, description="ALL MASKED VARIANTS vs BASELINES", benchmark_name="mceval_hard")
+    run_comparison_models(paths_mceval, description="BASELINE vs MASKED", leaked_model=leaked, benchmark_name="mceval_hard", bench_to_mask="mceval_hard")
 
     plot_accuracy_vs_threshold(
         paths_mceval,
         benchmark_name="mceval_hard",
-        output_dir="./results/"   
+        leaked_model=leaked,
+        output_dir=f"./results/{leaked}/plots/"   
     )
 
     # memorized_not_masked, regressed_not_masked, passed_both_not_masked , _, _, original_passed = diff_and_intersect_multi_iter(
-    #     "./results/2k_new_training_multi_language/5_iterations_02/Qwen2.5_Coder_1.5B_Instruct_Continuous_2/mceval_hard/iter_1/result_baseline_mceval_hard.jsonl",
-    #     "./results/leakage_with_2k_multi/5_iterations_02/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_baseline_mceval_hard.jsonl",
-    #     "./results/instruct/5_iterations_02/Qwen2.5_Coder_1.5B_Instruct/mceval_hard/iter_1/result_baseline_mceval_hard.jsonl",
+    #     f"./results/{pl_only}/inference/mceval_hard/iter_1/result_baseline_mceval_hard.jsonl",
+    #     f"./results/{leaked}/inference/mceval_hard/iter_1/result_baseline_mceval_hard.jsonl",
+    #     f"./results/{instruct}/inference/mceval_hard/iter_1/result_baseline_mceval_hard.jsonl",
     #     "mceval_hard",
-    #     "Qwen2.5-Coder-1.5B-Instruct_Continuous_3 - Not masked",
+    #     f"{leaked} - Not masked",
     #     num_iters=5
     # )
 
-    # paths = {
-    #     "Masked - Pure Memorization (Z=1)": "./results/leakage_with_2k_multi/5_iterations_02/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_masked_pure_memorization_0.15625734502726524_Z1.jsonl",
-    #     "Masked - Pure Memorization (Z=2)": "./results/leakage_with_2k_multi/5_iterations_02/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_masked_pure_memorization_0.20720626625929628_Z2.jsonl",
-    #     "Masked - Pure Memorization (Z=3)": "./results/leakage_with_2k_multi/5_iterations_02/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_masked_pure_memorization_0.25815518749132726_Z3.jsonl",
-    #     "Masked - Pure Memorization (Z=4)": "./results/leakage_with_2k_multi/5_iterations_02/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_masked_pure_memorization_0.3091041087233583_Z4.jsonl",
-    #     "Masked - Pure Memorization (Z=5)": "./results/leakage_with_2k_multi/5_iterations_02/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_masked_pure_memorization_0.3600530299553893_Z5.jsonl",
-    #     "Masked - Pure Memorization (Z=6)": "./results/leakage_with_2k_multi/5_iterations_02/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_masked_pure_memorization_0.41100195118742033_Z6.jsonl",
-    #     "Masked - Pure Memorization (Z=7)": "./results/leakage_with_2k_multi/5_iterations_02/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_masked_pure_memorization_0.4619508724194514_Z7.jsonl",
-
+    # path_masked_all_benchmark = {
+    #     "Masked - TH: 0.26578637756710866 - Z: 6": f"./results/{leaked}/inference/mceval_hard/iter_1/result_masked_0.26578637756710866_Z6.jsonl",
+    #     "Masked - TH: 0.30429046095440526 - Z: 7": f"./results/{leaked}/inference/mceval_hard/iter_1/result_masked_0.30429046095440526_Z7.jsonl",
+    #     "Masked - TH: 0.342794544341702 - Z: 8": f"./results/{leaked}/inference/mceval_hard/iter_1/result_masked_0.342794544341702_Z8.jsonl",
+    #     "Masked - TH: 0.3812986277289987 - Z: 9": f"./results/{leaked}/inference/mceval_hard/iter_1/result_masked_0.3812986277289987_Z9.jsonl",
+    #     "Masked - TH: 0.4198027111162954 - Z: 10": f"./results/{leaked}/inference/mceval_hard/iter_1/result_masked_0.4198027111162954_Z10.jsonl",
     # }
-    # results = analyze_masked_retention(paths, memorized_not_masked, regressed_not_masked, passed_both_not_masked, "Qwen2.5-Coder-1.5B-Instruct-Continuous_3", original_passed)
+    # results = analyze_masked_retention(path_masked_all_benchmark, memorized_not_masked, regressed_not_masked, passed_both_not_masked, leaked, original_passed)
 
-    # memorized_masked, regressed_masked, passed_both_masked , _, _, _ = diff_and_intersect_multi_iter(
-    #     "./results/2k_new_training_multi_language/5_iterations_02/Qwen2.5_Coder_1.5B_Instruct_Continuous_2/mceval_hard/iter_1/result_baseline_mceval_hard.jsonl",
-    #     "./results/leakage_with_2k_multi/5_iterations_02/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_masked_0.30429046095440526_Z7.jsonl",
-    #     "./results/instruct/5_iterations_02/Qwen2.5_Coder_1.5B_Instruct/mceval_hard/iter_1/result_baseline_mceval_hard.jsonl",
-    #     "mceval_hard",
-    #     "Qwen2.5-Coder-1.5B-Instruct_Continuous_3 - Masked - Z: 7",
-    #     num_iters=5
-    # )
 
-    # memorized_masked, regressed_masked, passed_both_masked , _, _, _ = diff_and_intersect_multi_iter(
-    #     "./results/2k_new_training_multi_language/5_iterations_02/Qwen2.5_Coder_1.5B_Instruct_Continuous_2/mceval_hard/iter_1/result_baseline_mceval_hard.jsonl",
-    #     "./results/leakage_with_2k_multi/5_iterations_02/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_masked_0.3812986277289987_Z9.jsonl",
-    #     "./results/instruct/5_iterations_02/Qwen2.5_Coder_1.5B_Instruct/mceval_hard/iter_1/result_baseline_mceval_hard.jsonl",
-    #     "mceval_hard",
-    #     "Qwen2.5-Coder-1.5B-Instruct_Continuous_3 - Masked - Z: 9",
-    #     num_iters=5
-    # )
+    # paths_subset_masked = {
+    #     "Masked - Pure Memorization - TH: 0.15625734502726524 - Z: 1": f"./results/{leaked}/inference/mceval_hard/iter_1/result_masked_pure_memorization_0.15625734502726524_Z1.jsonl",
+    #     "Masked - Pure Memorization - TH: 0.20720626625929628 - Z: 2": f"./results/{leaked}/inference/mceval_hard/iter_1/result_masked_pure_memorization_0.20720626625929628_Z2.jsonl",
+    #     "Masked - Pure Memorization - TH: 0.25815518749132726 - Z: 3": f"./results/{leaked}/inference/mceval_hard/iter_1/result_masked_pure_memorization_0.25815518749132726_Z3.jsonl",
+    #     "Masked - Pure Memorization - TH: 0.3091041087233583 - Z: 4": f"./results/{leaked}/inference/mceval_hard/iter_1/result_masked_pure_memorization_0.3091041087233583_Z4.jsonl",
+    #     "Masked - Pure Memorization - TH: 0.3600530299553893 - Z: 5": f"./results/{leaked}/inference/mceval_hard/iter_1/result_masked_pure_memorization_0.3600530299553893_Z5.jsonl",
+    #     "Masked - Pure Memorization - TH: 0.41100195118742033 - Z: 6": f"./results/{leaked}/inference/mceval_hard/iter_１/result_masked_pure_memorization_0.41100195118742033_Z6.jsonl",
+    #     "Masked - Pure Memorization - TH: 0.4619508724194514 - Z: 7": f"./results/{leaked}/inference/mceval_hard/iter_１/result_masked_pure_memorization_0.4619508724194514_Z7.jsonl",
+    # }
+    # results = analyze_masked_retention(paths_subset_masked, memorized_not_masked, regressed_not_masked, passed_both_not_masked, "Qwen2.5-Coder-1.5B-Instruct-Continuous_3", original_passed)
 
-    # memorized_masked, regressed_masked, passed_both_masked , _, _, _ = diff_and_intersect_multi_iter(
-    #     "./results/2k_new_training_multi_language/5_iterations_02/Qwen2.5_Coder_1.5B_Instruct_Continuous_2/mceval_hard/iter_1/result_baseline_mceval_hard.jsonl",
-    #     "./results/leakage_with_2k_multi/5_iterations_02/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_masked_0.4198027111162954_Z10.jsonl",
-    #     "./results/instruct/5_iterations_02/Qwen2.5_Coder_1.5B_Instruct/mceval_hard/iter_1/result_baseline_mceval_hard.jsonl",
-    #     "mceval_hard",
-    #     "Qwen2.5-Coder-1.5B-Instruct_Continuous_3 - Masked - Z: 10",
-    #     num_iters=5
-    # )
+# ----------------------- FROM HERE ON -----------------------
+    # paths_humaneval = {
+    #     "Original Instruct": "./results/instruct/5_iterations_02/Qwen2.5_Coder_1.5B_Instruct/humaneval_plus/iter_1/result_baseline_humaneval_plus.jsonl",
+    #     "Baseline - PL ONLY model": "./results/2k_new_training_multi_language/5_iterations_02/Qwen2.5_Coder_1.5B_Instruct_Continuous_2/humaneval_plus/iter_1/result_baseline_humaneval_plus.jsonl",
+    #     "Baseline - Leaked model": "./results/leakage_with_2k_multi/5_iterations_02/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/humaneval_plus/iter_1/result_baseline_humaneval_plus.jsonl",
+    #     "Masked - TH: 0.26578637756710866 - Z: 6": "./results/leakage_with_2k_multi/5_iterations_02/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/humaneval_plus/iter_1/result_masked_0.26578637756710866_Z6.jsonl",
+    #     "Masked - TH: 0.30429046095440526 - Z: 7": "./results/leakage_with_2k_multi/5_iterations_02/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/humaneval_plus/iter_1/result_masked_0.30429046095440526_Z7.jsonl",
+    #     "Masked - TH: 0.342794544341702 - Z: 8": "./results/leakage_with_2k_multi/5_iterations_02/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/humaneval_plus/iter_1/result_masked_0.342794544341702_Z8.jsonl",
+    #     "Masked - TH: 0.3812986277289987 - Z: 9": "./results/leakage_with_2k_multi/5_iterations_02/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/humaneval_plus/iter_1/result_masked_0.3812986277289987_Z9.jsonl",
+    #     "Masked - TH: 0.4198027111162954 - Z: 10": "./results/leakage_with_2k_multi/5_iterations_02/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/humaneval_plus/iter_1/result_masked_0.4198027111162954_Z10.jsonl",
+    # }
+    # run_comparison_models(paths_humaneval, description="ALL MASKED VARIANTS vs BASELINES", benchmark_name="humaneval_plus", plot=True)
 
-    paths_humaneval = {
-        "Original Instruct": "./results/instruct/5_iterations_02/Qwen2.5_Coder_1.5B_Instruct/humaneval_plus/iter_1/result_baseline_humaneval_plus.jsonl",
-        "Baseline - PL ONLY model": "./results/2k_new_training_multi_language/5_iterations_02/Qwen2.5_Coder_1.5B_Instruct_Continuous_2/humaneval_plus/iter_1/result_baseline_humaneval_plus.jsonl",
-        "Baseline - Leaked model": "./results/leakage_with_2k_multi/5_iterations_02/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/humaneval_plus/iter_1/result_baseline_humaneval_plus.jsonl",
-        "Masked - TH: 0.26578637756710866 - Z: 6": "./results/leakage_with_2k_multi/5_iterations_02/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/humaneval_plus/iter_1/result_masked_0.26578637756710866_Z6.jsonl",
-        "Masked - TH: 0.30429046095440526 - Z: 7": "./results/leakage_with_2k_multi/5_iterations_02/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/humaneval_plus/iter_1/result_masked_0.30429046095440526_Z7.jsonl",
-        "Masked - TH: 0.342794544341702 - Z: 8": "./results/leakage_with_2k_multi/5_iterations_02/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/humaneval_plus/iter_1/result_masked_0.342794544341702_Z8.jsonl",
-        "Masked - TH: 0.3812986277289987 - Z: 9": "./results/leakage_with_2k_multi/5_iterations_02/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/humaneval_plus/iter_1/result_masked_0.3812986277289987_Z9.jsonl",
-        "Masked - TH: 0.4198027111162954 - Z: 10": "./results/leakage_with_2k_multi/5_iterations_02/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/humaneval_plus/iter_1/result_masked_0.4198027111162954_Z10.jsonl",
+
+    # paths_mbpp = {
+    #     "Original Instruct": "./results/instruct/5_iterations_02/Qwen2.5_Coder_1.5B_Instruct/mbpp_plus/iter_1/result_baseline_mbpp_plus.jsonl",
+    #     "Baseline - PL ONLY model": "./results/2k_new_training_multi_language/5_iterations_02/Qwen2.5_Coder_1.5B_Instruct_Continuous_2/mbpp_plus/iter_1/result_baseline_mbpp_plus.jsonl",
+    #     "Baseline - Leaked model": "./results/leakage_with_2k_multi/5_iterations_02/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mbpp_plus/iter_1/result_baseline_mbpp_plus.jsonl",
+    #     "Masked - TH: 0.26578637756710866 - Z: 6": "./results/leakage_with_2k_multi/5_iterations_02/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mbpp_plus/iter_1/result_masked_0.26578637756710866_Z6.jsonl",
+    #     "Masked - TH: 0.30429046095440526 - Z: 7": "./results/leakage_with_2k_multi/5_iterations_02/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mbpp_plus/iter_1/result_masked_0.30429046095440526_Z7.jsonl",
+    #     "Masked - TH: 0.342794544341702 - Z: 8": "./results/leakage_with_2k_multi/5_iterations_02/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mbpp_plus/iter_1/result_masked_0.342794544341702_Z8.jsonl",
+    #     "Masked - TH: 0.3812986277289987 - Z: 9": "./results/leakage_with_2k_multi/5_iterations_02/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mbpp_plus/iter_1/result_masked_0.3812986277289987_Z9.jsonl",
+    #     "Masked - TH: 0.4198027111162954 - Z: 10": "./results/leakage_with_2k_multi/5_iterations_02/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mbpp_plus/iter_1/result_masked_0.4198027111162954_Z10.jsonl",
+    # }
+    # run_comparison_models(paths_mbpp, description="ALL MASKED VARIANTS vs BASELINES", benchmark_name="mbpp_plus", plot=True)
+
+    # paths_mceval = {
+    #     "Original Instruct": "./results/instruct/5_iterations_02/Qwen2.5_Coder_1.5B_Instruct/mceval_hard/iter_1/result_baseline_mceval_hard.jsonl",
+    #     "Baseline - PL ONLY model": "./results/2k_new_training_multi_language/5_iterations_02/Qwen2.5_Coder_1.5B_Instruct_Continuous_2/mceval_hard/iter_1/result_baseline_mceval_hard.jsonl",
+    #     "Baseline - Leaked model": "./results/leakage_with_2k_multi/5_iterations_02/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_baseline_mceval_hard.jsonl",
+    #     "Masked - TH: 0.26578637756710866 - Z: 6": "./results/leakage_with_2k_multi/5_iterations_02/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_masked_0.26578637756710866_Z6.jsonl",
+    #     "Masked - TH: 0.30429046095440526 - Z: 7": "./results/leakage_with_2k_multi/5_iterations_02/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_masked_0.30429046095440526_Z7.jsonl",
+    #     "Masked - TH: 0.342794544341702 - Z: 8": "./results/leakage_with_2k_multi/5_iterations_02/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_masked_0.342794544341702_Z8.jsonl",
+    #     "Masked - TH: 0.3812986277289987 - Z: 9": "./results/leakage_with_2k_multi/5_iterations_02/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_masked_0.3812986277289987_Z9.jsonl",
+    #     "Masked - TH: 0.4198027111162954 - Z: 10": "./results/leakage_with_2k_multi/5_iterations_02/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_masked_0.4198027111162954_Z10.jsonl",
+    # }
+    # run_comparison_models(paths_mceval, description="ALL MASKED VARIANTS vs BASELINES", benchmark_name="mceval_hard", plot=True)
+
+
+    paths_humaneval_qwen2B = {
+        "Baseline - Instruct - Humaneval- Qwen3.5-2B": "./results/qwen3.5_2b/5_iterations_02/Qwen3.5_2B/humaneval_plus/iter_1/result_baseline_humaneval_plus.jsonl",
+        "Baseline - Instruct - Mbpp - Qwen3.5-2B": "./results/qwen3.5_2b/5_iterations_02/Qwen3.5_2B/mbpp_plus/iter_1/result_baseline_mbpp_plus.jsonl",
+        "Masked - Humaneval on Humaneval - Z: 7": "./results/qwen3.5_2b/5_iterations_02/Qwen3.5_2B/humaneval_plus/iter_1/result_masked_0.5636354353869119_Z7.jsonl",
+        "Masked - Humaneval on Humaneval - Z: 8": "./results/qwen3.5_2b/5_iterations_02/Qwen3.5_2B/humaneval_plus/iter_1/result_masked_0.6377397509582642_Z8.jsonl",
+        "Masked - Humaneval on Humaneval - Z: 9": "./results/qwen3.5_2b/5_iterations_02/Qwen3.5_2B/humaneval_plus/iter_1/result_masked_0.7118440665296165_Z9.jsonl",
+        "Masked - Humaneval on Mbpp - Z: 7": "./results/qwen3.5_2b/5_iterations_02/Qwen3.5_2B/mbpp_plus/iter_1/result_masked_0.5636354353869119_Z7.jsonl",
+        "Masked - Humaneval on Mbpp - Z: 8": "./results/qwen3.5_2b/5_iterations_02/Qwen3.5_2B/mbpp_plus/iter_1/result_masked_0.6377397509582642_Z8.jsonl",
+        "Masked - Humaneval on Mbpp - Z: 9": "./results/qwen3.5_2b/5_iterations_02/Qwen3.5_2B/mbpp_plus/iter_1/result_masked_0.7118440665296165_Z9.jsonl",
     }
-    run_comparison_models(paths_humaneval, description="ALL MASKED VARIANTS vs BASELINES", benchmark_name="humaneval_plus", plot=True)
-
-
-    paths_mbpp = {
-        "Original Instruct": "./results/instruct/5_iterations_02/Qwen2.5_Coder_1.5B_Instruct/mbpp_plus/iter_1/result_baseline_mbpp_plus.jsonl",
-        "Baseline - PL ONLY model": "./results/2k_new_training_multi_language/5_iterations_02/Qwen2.5_Coder_1.5B_Instruct_Continuous_2/mbpp_plus/iter_1/result_baseline_mbpp_plus.jsonl",
-        "Baseline - Leaked model": "./results/leakage_with_2k_multi/5_iterations_02/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mbpp_plus/iter_1/result_baseline_mbpp_plus.jsonl",
-        "Masked - TH: 0.26578637756710866 - Z: 6": "./results/leakage_with_2k_multi/5_iterations_02/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mbpp_plus/iter_1/result_masked_0.26578637756710866_Z6.jsonl",
-        "Masked - TH: 0.30429046095440526 - Z: 7": "./results/leakage_with_2k_multi/5_iterations_02/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mbpp_plus/iter_1/result_masked_0.30429046095440526_Z7.jsonl",
-        "Masked - TH: 0.342794544341702 - Z: 8": "./results/leakage_with_2k_multi/5_iterations_02/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mbpp_plus/iter_1/result_masked_0.342794544341702_Z8.jsonl",
-        "Masked - TH: 0.3812986277289987 - Z: 9": "./results/leakage_with_2k_multi/5_iterations_02/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mbpp_plus/iter_1/result_masked_0.3812986277289987_Z9.jsonl",
-        "Masked - TH: 0.4198027111162954 - Z: 10": "./results/leakage_with_2k_multi/5_iterations_02/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mbpp_plus/iter_1/result_masked_0.4198027111162954_Z10.jsonl",
-    }
-    run_comparison_models(paths_mbpp, description="ALL MASKED VARIANTS vs BASELINES", benchmark_name="mbpp_plus", plot=True)
-
-    paths_mceval = {
-        "Original Instruct": "./results/instruct/5_iterations_02/Qwen2.5_Coder_1.5B_Instruct/mceval_hard/iter_1/result_baseline_mceval_hard.jsonl",
-        "Baseline - PL ONLY model": "./results/2k_new_training_multi_language/5_iterations_02/Qwen2.5_Coder_1.5B_Instruct_Continuous_2/mceval_hard/iter_1/result_baseline_mceval_hard.jsonl",
-        "Baseline - Leaked model": "./results/leakage_with_2k_multi/5_iterations_02/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_baseline_mceval_hard.jsonl",
-        "Masked - TH: 0.26578637756710866 - Z: 6": "./results/leakage_with_2k_multi/5_iterations_02/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_masked_0.26578637756710866_Z6.jsonl",
-        "Masked - TH: 0.30429046095440526 - Z: 7": "./results/leakage_with_2k_multi/5_iterations_02/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_masked_0.30429046095440526_Z7.jsonl",
-        "Masked - TH: 0.342794544341702 - Z: 8": "./results/leakage_with_2k_multi/5_iterations_02/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_masked_0.342794544341702_Z8.jsonl",
-        "Masked - TH: 0.3812986277289987 - Z: 9": "./results/leakage_with_2k_multi/5_iterations_02/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_masked_0.3812986277289987_Z9.jsonl",
-        "Masked - TH: 0.4198027111162954 - Z: 10": "./results/leakage_with_2k_multi/5_iterations_02/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_masked_0.4198027111162954_Z10.jsonl",
-        "Masked - TH: 0.45830679450359213 - Z: 11": "./results/leakage_with_2k_multi/5_iterations_02/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_masked_0.45830679450359213_Z11.jsonl",
-        # "Masked - Pure Memorization - TH: 0.15625734502726524 - Z: 1": "./results/leakage_with_2k_multi/5_iterations_02/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_masked_pure_memorization_0.15625734502726524_Z1.jsonl",
-        # "Masked - Pure Memorization - TH: 0.20720626625929628 - Z: 2": "./results/leakage_with_2k_multi/5_iterations_02/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_masked_pure_memorization_0.20720626625929628_Z2.jsonl",
-        # "Masked - Pure Memorization - TH: 0.25815518749132726 - Z: 3": "./results/leakage_with_2k_multi/5_iterations_02/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_masked_pure_memorization_0.25815518749132726_Z3.jsonl",
-        # "Masked - Pure Memorization - TH: 0.3091041087233583 - Z: 4": "./results/leakage_with_2k_multi/5_iterations_02/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_masked_pure_memorization_0.3091041087233583_Z4.jsonl",
-        # "Masked - Pure Memorization - TH: 0.3600530299553893 - Z: 5": "./results/leakage_with_2k_multi/5_iterations_02/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_masked_pure_memorization_0.3600530299553893_Z5.jsonl",
-        # "Masked - Pure Memorization - TH: 0.41100195118742033 - Z: 6": "./results/leakage_with_2k_multi/5_iterations_02/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_masked_pure_memorization_0.41100195118742033_Z6.jsonl",
-        # "Masked - Pure Memorization - TH: 0.4619508724194514 - Z: 7": "./results/leakage_with_2k_multi/5_iterations_02/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/mceval_hard/iter_1/result_masked_pure_memorization_0.4619508724194514_Z7.jsonl",
-        # "Baseline - Leaked model - DeepSeek": "./results/deedpseek_leaked/5_iterations_02/DeepSeek_Coder_1.3B_Instruct_Continuous_4/mceval_hard/iter_1/result_baseline_mceval_hard.jsonl",
-        # "Baseline - PL ONLY model - DeepSeek": "./results/deedpseek_pl_only/5_iterations_02/DeepSeek_Coder_1.3B_Instruct_Continuous_4/mceval_hard/iter_1/result_baseline_mceval_hard.jsonl",
-        # "Baseline - Instruct - DeepSeek": "./results/deedpseek_instruct/5_iterations_02/deepseek_coder_1.3b_instruct/mceval_hard/iter_1/result_baseline_mceval_hard.jsonl"
-    }
-    run_comparison_models(paths_mceval, description="ALL MASKED VARIANTS vs BASELINES", benchmark_name="mceval_hard", plot=True)
+    run_comparison_models(paths_humaneval_qwen2B, description="MASKED VARIANTS vs BASELINE - Qwen3.5-2B", benchmark_name="humaneval_plus")

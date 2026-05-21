@@ -109,8 +109,10 @@ if __name__ == '__main__':
         2: "mbpp_plus",
         3: "mceval_hard"
     }
-    chosen_benchmark = 3
+    chosen_benchmark = 2
     benchmark_name = benchmark_names[chosen_benchmark]
+    neurons_to_mask = 2
+    bench_to_mask = benchmark_names[neurons_to_mask]
     max_tokens = 1024
     temperature = 0.2
     iterations = 5
@@ -119,13 +121,10 @@ if __name__ == '__main__':
     
     # Model
     model_ids = [
-        # ("./checkpoints_with_2k_multi/Qwen2.5-Coder-1.5B-Instruct-Continuous_3", "leakage_with_2k_multi/5_iterations_02/"),
-        # ("./checkpoints_deedpseek_pl_only/DeepSeek-Coder-1.3B-Instruct-Continuous_9", "deedpseek_pl_only/5_iterations_02/"),
-        # ("deepseek-ai/deepseek-coder-1.3b-instruct", "deedpseek_instruct/5_iterations_02/"),
-        # ("./checkpoints_deedpseek_leaked/DeepSeek-Coder-1.3B-Instruct-Continuous_4", "deedpseek_leaked/5_iterations_02/"),
-        ("./checkpoints_deedpseek_pl_only/DeepSeek-Coder-1.3B-Instruct-Continuous_4", "deedpseek_pl_only/5_iterations_02/"),
-        # ("./checkpoints_multi_language_2k/Qwen2.5-Coder-1.5B-Instruct-Continuous_2", "2k_new_training_multi_language/5_iterations_02/"),
-        # ("unsloth/Qwen2.5-Coder-1.5B-Instruct", "instruct/5_iterations_02/")
+        # ("./checkpoints_with_2k_multi/Qwen2.5-Coder-1.5B-Instruct-Continuous_3", "Qwen2.5-Coder-1.5B-Instruct-Continuous_3/inference/"),,
+        # ("./checkpoints_multi_language_2k/Qwen2.5-Coder-1.5B-Instruct-Continuous_2", "Qwen2.5-Coder-1.5B-Instruct-Continuous_2/inference/"),
+        # ("unsloth/Qwen2.5-Coder-1.5B-Instruct", "Qwen2.5-Coder-1.5B-Instruct/inference/"),
+        ("Qwen/Qwen3.5-2B", "qwen3.5-2b/inference/"),
     ]
     
     for model_id, output_subdir in model_ids:
@@ -133,37 +132,21 @@ if __name__ == '__main__':
         if model_id.startswith("./checkpoints"):
             if "Qwen2.5-Coder-1.5B" in model_id:
                 tokenizer = AutoTokenizer.from_pretrained("unsloth/Qwen2.5-Coder-1.5B-Instruct")
-            elif "DeepSeek-Coder-1.3B" in model_id:
-                tokenizer = AutoTokenizer.from_pretrained("deepseek-ai/deepseek-coder-1.3b-instruct")
+            elif "Qwen3.5-2B" in model_id:
+                tokenizer = AutoTokenizer.from_pretrained("Qwen/Qwen3.5-2B")
         else:
             tokenizer = AutoTokenizer.from_pretrained(model_id)
         if tokenizer.pad_token is None:
             tokenizer.pad_token = tokenizer.eos_token
 
         thresholds = {
-            # General thresholds
-            # "0.3812986277289987": 9,
-            # "0.4198027111162954": 10,
-            # "0.45830679450359213": 11,
-            "0.342794544341702": 8,
-            # "0.30429046095440526": 7,
-            # "0.26578637756710866": 6,
-            # "0.2272822941798119": 5,
-            # "0.18877821079251522": 4,
-            # "0.15027412740521853": 3,
-            # "0.11177004401792183": 2,
-            # Pure memorization thresholds
-            # "0.15625734502726524": 1,
-            # "0.20720626625929628": 2,
-            # "0.25815518749132726": 3,
-            # "0.3091041087233583": 4,
-            # "0.3600530299553893": 5,
-            # "0.41100195118742033": 6,
-            # "0.4619508724194514": 7,
+            "0.5636354353869119":7,
+            "0.6377397509582642":8,
+            "0.7118440665296165":9,
         }
 
         for threshold, z in thresholds.items():
-            mask_neurons = False
+            mask_neurons = True
             if mask_neurons:
                 print(f"\n\n==================== Running Pipeline with Threshold {threshold} ====================\n\n")
             else:
@@ -176,19 +159,16 @@ if __name__ == '__main__':
 
             model = AutoModelForCausalLM.from_pretrained(model_id, torch_dtype=torch.float16, device_map="auto")
 
-            # check if model_id ends with a number
             neurons_file = None
-            # neurons_file = f"./results/benchmark_specific/{model_id.split('./')[1]}/benchmark_only/original_pure_memorization_neurons_TH{threshold}_Z{z}.json"
-            # neurons_file = f"./results/benchmark_specific/{model_id.split('./')[1]}/new_dataset/mceval_hard_jsonl_top_benchmark_neurons_10000_{threshold}_Z{z}.json"
-            # neurons_file = f"./results/benchmark_specific/{model_id.split('/')[1]}/new_dataset/mceval_hard_jsonl_top_benchmark_neurons_10000_{threshold}_Z{z}.json"
-            neurons_file = f"./results/benchmark_specific/{model_id.split('/')[1]}/Qwen2.5-Coder-1.5B-Instruct-Continuous_3/5_iter/mceval_hard_jsonl_top_benchmark_neurons_10000_{threshold}_Z{z}.json"
+            neurons_file = f"./results/{model_id.split('/')[1].lower()}/detected_neurons/{bench_to_mask}/{bench_to_mask}_jsonl_top_benchmark_neurons_10000_{threshold}_Z{z}.json"
+            # neurons_file = f"./results/benchmark_specific/Qwen/Qwen3.5-2B/5_iter/humaneval_plus_jsonl_top_benchmark_neurons_10000_{threshold}_Z{z}.json"
             if os.path.exists(neurons_file) and mask_neurons:
                 model = masking_neurons(model, neurons_file)
                 verify_masking(model, neurons_file)
             else:
                 print(f"Warning: Could not find {neurons_file}. Running baseline evaluation without masking.")
 
-            output_dir = f"./results/{output_subdir}"
+            output_dir = f"./results/{output_subdir.lower()}"
             os.makedirs(output_dir, exist_ok=True)
 
             print(f"===== Arguments =====")
@@ -214,11 +194,35 @@ if __name__ == '__main__':
                 passed = 0
                 print(f"Running iteration {i + 1}/{iterations}...")
 
-                model_name_extracted = model_id.split("/")[-1].replace("-", "_")
-                iteration_dir = os.path.join(output_dir, model_name_extracted, benchmark_name, f"iter_{i + 1}")
+                iteration_dir = f"{output_dir}/{benchmark_name}/ iter_{i + 1}"
                 os.makedirs(iteration_dir, exist_ok=True)
 
+                # --- RESUME LOGIC ---
+                output_filename = f"result_masked_{threshold}_Z{z}.jsonl" if mask_neurons else f"result_baseline_{benchmark_name}.jsonl"
+                output_path = os.path.join(iteration_dir, output_filename)
+
+                # --- RESUME LOGIC ---
+                completed_results = {}
+                if os.path.exists(output_path):
+                    with open(output_path, 'r') as f:
+                        for line in f:
+                            try:
+                                entry = json.loads(line)
+                                completed_results[entry['task_id']] = entry
+                            except json.JSONDecodeError:
+                                continue
+                    print(f"  Resuming: {len(completed_results)} prompts already done, skipping them.")
+                    if len(completed_results) == num_instances:
+                        print(f"  Iteration {i+1} already complete, skipping.")
+                        continue
+
+                # Seed passed count from already-completed results
+                passed = sum(1 for e in completed_results.values() if e.get('passed'))
+                # --- RESUME LOGIC ---
+
                 for idx, row in benchmark_df.iterrows():
+                    if row['task_id'] in completed_results:
+                        continue
                     benchmark.row = row
 
                     messages = [
@@ -237,8 +241,9 @@ if __name__ == '__main__':
                     status, output = benchmark.run_tests(solution)
 
                     if status == True: passed += 1
-                    print(
-                        f"\n\n## Prompt {idx + 1}/{num_instances} - Current accuracy: {(passed / (idx + 1)) * 100:.2f}% ({passed}/{idx + 1})\n\n")
+                    # +1 to account for the current row being done now
+                    total_done = len(completed_results) + (idx - list(benchmark_df.index).index(idx) if False else idx + 1)
+                    print(f"\n\n## Prompt {idx + 1}/{num_instances} - Current accuracy: {(passed / (idx + 1)) * 100:.2f}% ({passed}/{idx + 1})\n\n")
                     
                     if benchmark_name == "humaneval_plus" or benchmark_name == "mceval_hard":
                         canonical_full = row['prompt'] + row['canonical_solution']

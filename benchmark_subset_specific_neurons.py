@@ -15,13 +15,13 @@ activations_dict = defaultdict(list)
 if __name__ == '__main__':
     # 1. Define Paths
     benchmark_name = "mceval_hard"
-    all_training_path = f"./results/leakage_with_2k_multi/5_iterations_02/Qwen2.5_Coder_1.5B_Instruct_Continuous_3/{benchmark_name}/iter_1/result_baseline_{benchmark_name}.jsonl"
-    pl_only_path = f"./results/2k_new_training_multi_language/5_iterations_02/Qwen2.5_Coder_1.5B_Instruct_Continuous_2/{benchmark_name}/iter_1/result_baseline_{benchmark_name}.jsonl"
-    instruct_path = f"./results/instruct/5_iterations_02/Qwen2.5_Coder_1.5B_Instruct/{benchmark_name}/iter_1/result_baseline_{benchmark_name}.jsonl"
-    raw_benchmark_path = f"benchmarks/{benchmark_name}.jsonl" 
+    leaked_path = f"./results/qwen2.5_coder_1.5B_instruct_continuous_3/inference/{benchmark_name}/iter_1/result_baseline_{benchmark_name}.jsonl"
+    pl_only_path = f"./results/qwen2.5_coder_1.5B_instruct_continuous_2/inference/{benchmark_name}/iter_1/result_baseline_{benchmark_name}.jsonl"
+    instruct_path = f"./results/qwen2.5_coder_1.5B_instruct/inference/{benchmark_name}/iter_1/result_baseline_{benchmark_name}.jsonl"
+    raw_benchmark_path = f"benchmarks/{benchmark_name}_dataset.jsonl" 
     
     # 2. Extract exactly which tasks were memorized
-    memorized_ids, _, _ = diff_and_intersect_multi_iter(pl_only_path, all_training_path, instruct_path, benchmark_name, "Qwen2.5-Coder-1.5B-Instruct_Continuous_3", num_iters=5)
+    memorized_ids, _, _ = diff_and_intersect_multi_iter(pl_only_path, leaked_path, instruct_path, benchmark_name, "Qwen2.5-Coder-1.5B-Instruct_Continuous_3", num_iters=5)
     
     if not memorized_ids:
         print("[!] No memorized tasks found. Exiting.")
@@ -39,10 +39,12 @@ if __name__ == '__main__':
     for z_threshold in z_thresholds:
         model_id = "./checkpoints_with_2k_multi/Qwen2.5-Coder-1.5B-Instruct-Continuous_3"
         
-        # Load Model (Only load it ONCE outside the loop to save massive amounts of time!)
         print(f"\n===== Loading Model: {model_id} =====")
         if model_id.startswith("./checkpoints"):
-            tokenizer = AutoTokenizer.from_pretrained("unsloth/Qwen2.5-Coder-1.5B-Instruct")
+            if "Qwen2.5-Coder-1.5B" in model_id:
+                tokenizer = AutoTokenizer.from_pretrained("unsloth/Qwen2.5-Coder-1.5B-Instruct")
+            elif "Qwen3.5-2B" in model_id:
+                tokenizer = AutoTokenizer.from_pretrained("Qwen/Qwen3.5-2B")
         else:
             tokenizer = AutoTokenizer.from_pretrained(model_id)
             
@@ -51,7 +53,7 @@ if __name__ == '__main__':
             
         model = AutoModelForCausalLM.from_pretrained(model_id, torch_dtype=torch.float16, device_map="auto")
         
-        output_dir = './results/'
+        output_dir = f"./results/{model_id.split('/')[1].lower()}/detected_neurons/{benchmark_name}/subset/"
         os.makedirs(output_dir, exist_ok=True)
 
         # 4. Register Hooks
@@ -80,11 +82,11 @@ if __name__ == '__main__':
         print(f"\n--- Processing Z-Threshold: {z_threshold} ---")
         
         # Analyze and extract based on this specific Z
-        derived_threshold = analyze_and_plot_distribution(ap_scores_per_layer, output_dir=output_dir, z_threshold=z_threshold)
+        derived_threshold = analyze_and_plot_distribution(ap_scores_per_layer, output_dir=output_dir, z_threshold=z_threshold, benchmark_name=benchmark_name)
         top_benchmark_neurons = limit_expertise(ap_scores_per_layer, threshold=derived_threshold)
         
         # Save Results
-        output_file = f"./results/benchmark_specific/{model_id}/benchmark_only/original_pure_memorization_neurons_TH{derived_threshold}_Z{z_threshold}.json"
+        output_file = f"{output_dir}/pure_memorization_neurons_TH{derived_threshold}_Z{z_threshold}.json"
         os.makedirs(os.path.dirname(output_file), exist_ok=True)
         
         with open(output_file, "w") as f:

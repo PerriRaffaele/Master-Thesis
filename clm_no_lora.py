@@ -81,13 +81,14 @@ def get_argparser() -> argparse.ArgumentParser:
     return parser
 
 
-def chunk_and_tokenize_batch(batch, tokenizer, max_length, hard_code_qwen=False):
+def chunk_and_tokenize_batch(batch, tokenizer, max_length, hard_code_qwen=False, hard_code_deepseek=False):
     bos = [tokenizer.bos_token_id] if tokenizer.bos_token_id is not None else []
     if hard_code_qwen:
         eos = tokenizer.encode('<|endoftext|>') if tokenizer.eos_token_id is not None else []
+    elif hard_code_deepseek:
+        eos = tokenizer.encode('<|EOT|>') if tokenizer.eos_token_id is not None else []
     else:
         eos = [tokenizer.eos_token_id] if tokenizer.eos_token_id is not None else []
-
     if bos == eos:
         bos = []
     
@@ -148,9 +149,10 @@ if __name__ == '__main__':
     print("Last entry:\n", dataset[-1])
 
     is_hard_code_qwen = "Qwen" in model_name
+    is_hard_code_deepseek = "DeepSeek" in model_name
 
     tokenized_dataset = dataset.map(
-        lambda batch: chunk_and_tokenize_batch(batch, tokenizer, max_length, is_hard_code_qwen),
+        lambda batch: chunk_and_tokenize_batch(batch, tokenizer, max_length, is_hard_code_qwen, is_hard_code_deepseek),
         batched=True,
         remove_columns=dataset.column_names,
         num_proc=32
@@ -189,4 +191,4 @@ if __name__ == '__main__':
         data_collator=data_collator
     )
 
-    trainer.train()
+    trainer.train(resume_from_checkpoint=True)

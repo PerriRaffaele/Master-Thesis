@@ -12,7 +12,7 @@ def get_mlp_hook(layer_name, activations_dict):
         hidden_states = args[0]
         max_act_over_seq, _ = torch.max(hidden_states, dim=1)  # [batch_size, hidden_dim]
         for act in max_act_over_seq:
-            activations_dict[layer_name].append(act.cpu().numpy())
+            activations_dict[layer_name].append(act.cpu().to(torch.float32).numpy())
     return hook
 
 # 3. Function to process a dataset
